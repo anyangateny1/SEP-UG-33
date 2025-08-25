@@ -1,5 +1,4 @@
 import numpy as np
-import csv
 
 class BlockModel:
     def read_specification(self):
@@ -37,51 +36,49 @@ class BlockModel:
     def read_model(self):
         """
         Reads the 3D block model from stdin.
-        
         Each slice of the model is seperated by an empty line in input.
-        Rows are ordered bottom to top in the input (y=0 at the bottom).
-        Slices are ordered bottom to top in the input (z=0 is first).
-        Columns are ordered left to right in the input.
         
-        The model is stored as a 3D NumPy array attribute (input order preserved):
+        The model is stored as a 3D NumPy array attribute:
         self.model[y, x, z]
         """
         self.model = np.empty((self.y_count, self.x_count, self.parent_z), dtype = 'U1')
         slices_count = 0
-        for depth in range(self.z_count): 
-            for row in range(self.y_count):
+        for z in range(self.z_count): 
+            for y in range(self.y_count):
                 line = input()
-                for col, block in enumerate(line):
-                    self.model[row, col, slices_count] = block
+                for x, block in enumerate(line):
+                    self.model[y, x, slices_count] = block
             
             slices_count += 1
             
             # Compress slices of parent block thickness
             if slices_count == self.parent_z:
-                self.compress_slices(slices_count, self.z_count-1 - (depth+1 - slices_count))
+                top_slice = z+1 - slices_count
+                self.compress_slices(slices_count, top_slice)
                 slices_count = 0
             
             # Skip empty line
-            if depth < self.z_count-1:
+            if z < self.z_count-1:
                 input()
         
         if slices_count > 0:
-            self.compress_slices(slices_count, slices_count-1)
+            top_slice = self.z_count - slices_count
+            self.compress_slices(slices_count, top_slice)
         
 
     def compress_slices(self, num_slices, top_slice):
         """
         Outputs every block in required format:
         x,y,z,1,1,1,label
-        """
+        """        
         for slice_idx in range(num_slices):
-            for row in range(self.y_count):
-                for col in range(self.x_count):
-                    tag = self.model[row, col, slice_idx]
+            for y in range(self.y_count):
+                for x in range(self.x_count):
+                    tag = self.model[y, x, slice_idx]
                     label = self.tag_table[tag]
                 
-                    print(f"{col},{(self.y_count-1) - row},{top_slice - slice_idx},1,1,1,{label}")
-                    
+                    print(f"{x},{y},{top_slice + slice_idx},1,1,1,{label}")
+        
 def main():
     block_model = BlockModel()
 
