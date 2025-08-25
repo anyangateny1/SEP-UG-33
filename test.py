@@ -2,7 +2,6 @@ from block_model import BlockModel
 
 block_model = BlockModel()
 
-block_model = BlockModel()
 block_model.read_specification()
 block_model.read_tag_table()
 block_model.read_model()
