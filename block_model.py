@@ -58,12 +58,12 @@ class BlockModel:
         Outputs every block in required format:
         x,y,z,1,1,1,label
         """
-        for z in range(self.z_count):
-            for y in range(self.y_count):
-                for x in range(self.x_count):
-                    tag = self.model[y, x, z]
+        for depth in range(self.z_count):
+            for row in range(self.y_count):
+                for col in range(self.x_count):
+                    tag = self.model[row, col, depth]
                     label = self.tag_table[tag]
-                    print(f"{(self.x_count-1) - x},{(self.y_count-1)-y},{(self.z_count-1)-z},1,1,1,{label}")
+                    print(f"{col},{(self.y_count-1) - row},{(self.z_count-1) - depth},1,1,1,{label}")
                     
 def main():
     block_model = BlockModel()

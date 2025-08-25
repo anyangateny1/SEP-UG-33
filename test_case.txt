@@ -1,0 +1,19 @@
+64,8,1,8,8,1
+o, sea
+w, WA
+n, NT
+s, SA
+q, QLD
+e, NSW
+v, VIC
+t, TAS
+
+oooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo
+oooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo
+ooooooooooooooooooooooooooooooooooooooooooooooooottooooooooooooo
+oooooooooooooooooooooooooooooooooooooooooooooooootttoooooooooooo
+ooooooooooooooooooooooooooooooooooooooooooooooooottttooooooooooo
+ooooooooooooooooooooooooooooooooooooooooooooooootttttooooooooooo
+oooooooooooooooooooooooooooooooooooooooooooooooottootooooooooooo
+oooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo
+
