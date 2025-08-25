@@ -45,26 +45,37 @@ class BlockModel:
         The model is stored as a 3D NumPy array attribute (input order preserved):
         self.model[y, x, z]
         """
-        self.model = np.empty((self.y_count, self.x_count, self.z_count), dtype = 'U1')
+        self.model = np.empty((self.y_count, self.x_count, self.z_count // self.parent_z), dtype = 'U1')
+        slices_count = 0
         for depth in range(self.z_count):
+            if slices_count == self.parent_z:
+                self.compress_slices(slices_count)
+                slices_count = 0
+            
             for row in range(self.y_count):
                 line = input()
                 for col, block in enumerate(line):
-                    self.model[row, col, depth] = block
+                    self.model[row, col, slices_count] = block
             if depth < self.z_count-1:
                 input()
+            
+            slices_count += 1
+        
+        if slices_count > 0:
+            self.compress_slices(slices_count)
+        
 
-    def output_model(self):
+    def compress_slices(self, num_slices):
         """
         Outputs every block in required format:
         x,y,z,1,1,1,label
         """
-        for depth in range(self.z_count):
+        for slice in range(num_slices):
             for row in range(self.y_count):
                 for col in range(self.x_count):
-                    tag = self.model[row, col, depth]
+                    tag = self.model[row, col, slice]
                     label = self.tag_table[tag]
-                    print(f"{col},{(self.y_count-1) - row},{(self.z_count-1) - depth},1,1,1,{label}")
+                    print(f"{col},{(self.y_count-1) - row},{(self.z_count-1) - slice},1,1,1,{label}")
                     
 def main():
     block_model = BlockModel()
@@ -72,7 +83,7 @@ def main():
     block_model.read_specification()
     block_model.read_tag_table()
     block_model.read_model()
-    block_model.output_model()
+    # block_model.output_model()
 
 
 if __name__ == "__main__":
