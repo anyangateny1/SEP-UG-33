@@ -51,7 +51,8 @@ class BlockModel:
                 line = input()
                 for col, block in enumerate(line):
                     self.model[row, col, depth] = block
-            input()
+            if depth < self.z_count-1:
+                input()
 
     def output_model(self):
         """
