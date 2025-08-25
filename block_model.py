@@ -1,4 +1,5 @@
 import numpy as np
+import csv
 
 class BlockModel:
     def read_specification(self):
@@ -45,37 +46,41 @@ class BlockModel:
         The model is stored as a 3D NumPy array attribute (input order preserved):
         self.model[y, x, z]
         """
-        self.model = np.empty((self.y_count, self.x_count, self.z_count // self.parent_z), dtype = 'U1')
+        self.model = np.empty((self.y_count, self.x_count, self.parent_z), dtype = 'U1')
         slices_count = 0
-        for depth in range(self.z_count):
-            if slices_count == self.parent_z:
-                self.compress_slices(slices_count)
-                slices_count = 0
-            
+        for depth in range(self.z_count): 
             for row in range(self.y_count):
                 line = input()
                 for col, block in enumerate(line):
                     self.model[row, col, slices_count] = block
-            if depth < self.z_count-1:
-                input()
             
             slices_count += 1
+            
+            # Compress slices of parent block thickness
+            if slices_count == self.parent_z:
+                self.compress_slices(slices_count, self.z_count-1 - (depth+1 - slices_count))
+                slices_count = 0
+            
+            # Skip empty line
+            if depth < self.z_count-1:
+                input()
         
         if slices_count > 0:
-            self.compress_slices(slices_count)
+            self.compress_slices(slices_count, slices_count-1)
         
 
-    def compress_slices(self, num_slices):
+    def compress_slices(self, num_slices, top_slice):
         """
         Outputs every block in required format:
         x,y,z,1,1,1,label
         """
-        for slice in range(num_slices):
+        for slice_idx in range(num_slices):
             for row in range(self.y_count):
                 for col in range(self.x_count):
-                    tag = self.model[row, col, slice]
+                    tag = self.model[row, col, slice_idx]
                     label = self.tag_table[tag]
-                    print(f"{col},{(self.y_count-1) - row},{(self.z_count-1) - slice},1,1,1,{label}")
+                
+                    print(f"{col},{(self.y_count-1) - row},{top_slice - slice_idx},1,1,1,{label}")
                     
 def main():
     block_model = BlockModel()
@@ -83,7 +88,6 @@ def main():
     block_model.read_specification()
     block_model.read_tag_table()
     block_model.read_model()
-    # block_model.output_model()
 
 
 if __name__ == "__main__":
