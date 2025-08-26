@@ -61,11 +61,11 @@ class KdTree:
                 if split_z == block.z:
                     split_z = block.z + 1
                 
-                # left < Y
+                # left < Z
                 left_x, left_y, left_z = (block.x, block.y, block.z)
                 left_w, left_h, left_d = (block.width, block.height, split_z - block.z)
                 
-                # right >= Y
+                # right >= Z
                 right_x, right_y, right_z = (block.x, block.y, split_z)
                 right_w, right_h, right_d = (block.width, block.height, block.depth - (split_z - block.z))
             

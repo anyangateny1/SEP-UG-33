@@ -4,7 +4,6 @@ class Block:
     def __init__(self, x, y, z, width, height, depth, tag):
         self.x, self.y, self.z = (x, y, z)
         self.width, self.height, self.depth = (width, height, depth)
-        self.bottom_y, self.bottom_z = (self.y + (self.height - 1), self.z + (self.depth - 1))
         self.tag = tag
                         
     def check_is_uniform(self, slices: SlicesSection, scan_axis='z'):
@@ -34,4 +33,4 @@ class Block:
         return (True, 0, 0, 0)
     
     def print_block(self, label):
-        print(f"{self.x},{self.bottom_y},{self.bottom_z},{self.width},{self.height},{self.depth},{label}")
+        print(f"{self.x},{self.y},{self.z},{self.width},{self.height},{self.depth},{label}")

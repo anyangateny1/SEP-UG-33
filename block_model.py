@@ -71,7 +71,6 @@ class BlockModel:
         Outputs every block in required format:
         x,y,z,1,1,1,label
         """
-        
         for y in range(0, self.y_count, self.parent_y):
             for x in range(0, self.x_count, self.parent_x):
                 z = self.slices.top_slice
