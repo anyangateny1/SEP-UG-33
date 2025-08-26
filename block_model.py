@@ -1,4 +1,6 @@
-import numpy as np
+from slices_section import SlicesSection
+from block import Block
+from kd_tree import KdTree
 
 class BlockModel:
     def read_specification(self):
@@ -41,43 +43,46 @@ class BlockModel:
         The model is stored as a 3D NumPy array attribute:
         self.model[y, x, z]
         """
-        self.model = np.empty((self.y_count, self.x_count, self.parent_z), dtype = 'U1')
+        self.slices = SlicesSection(self.x_count, self.y_count, self.parent_z)
         slices_count = 0
         for z in range(self.z_count): 
             for y in range(self.y_count):
                 line = input()
-                for x, block in enumerate(line):
-                    self.model[y, x, slices_count] = block
-            
-            slices_count += 1
+                for x, block_tag in enumerate(line):
+                    self.slices.set_block_tag(x, y, z, block_tag)
             
             # Compress slices of parent block thickness
-            if slices_count == self.parent_z:
-                top_slice = z+1 - slices_count
-                self.compress_slices(slices_count, top_slice)
-                slices_count = 0
+            if (z+1) % self.parent_z == 0:
+                self.compress_slices()
+                self.slices.top_slice = z + 1
             
             # Skip empty line
             if z < self.z_count-1:
                 input()
         
-        if slices_count > 0:
-            top_slice = self.z_count - slices_count
-            self.compress_slices(slices_count, top_slice)
+        # Remaining slices less than parent block thickenss
+        if self.z_count % self.parent_z != 0:
+            self.slices.n = self.z_count % self.parent_z
+            self.compress_slices()
         
 
-    def compress_slices(self, num_slices, top_slice):
+    def compress_slices(self):
         """
         Outputs every block in required format:
         x,y,z,1,1,1,label
-        """        
-        for slice_idx in range(num_slices):
-            for y in range(self.y_count):
-                for x in range(self.x_count):
-                    tag = self.model[y, x, slice_idx]
-                    label = self.tag_table[tag]
+        """
+        
+        for y in range(0, self.y_count, self.parent_y):
+            for x in range(0, self.x_count, self.parent_x):
+                z = self.slices.top_slice
+                width = min(self.parent_x, self.x_count - x)
+                height = min(self.parent_y, self.y_count - y)
+                depth = self.slices.n
+                tag = self.slices.get_block_tag(x, y, z)
                 
-                    print(f"{x},{y},{top_slice + slice_idx},1,1,1,{label}")
+                block = Block(x, y, z, width, height, depth, tag)
+                kd_tree = KdTree(self.slices, self.tag_table)
+                kd_tree.build_kd_tree(block)
         
 def main():
     block_model = BlockModel()
