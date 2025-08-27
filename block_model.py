@@ -1,5 +1,6 @@
 from slices_section import SlicesSection
 from block import Block
+from node import Node
 from kd_tree import KdTree
 
 class BlockModel:
@@ -79,9 +80,11 @@ class BlockModel:
                 depth = self.slices.n
                 tag = self.slices.get_block_tag(x, y, z)
                 
-                block = Block(x, y, z, width, height, depth, tag)
-                kd_tree = KdTree(self.slices, self.tag_table)
-                kd_tree.build_kd_tree(block)
+                node = Node(x, y, z, width, height, depth, tag)
+                kd_tree = KdTree(self.slices, self.tag_table, self.parent_x, self.parent_y, self.parent_z)
+                kd_tree.build_kd_tree(node)
+                
+                kd_tree.post_compression_pass(node)
         
 def main():
     block_model = BlockModel()
