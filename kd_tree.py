@@ -104,6 +104,10 @@ class KdTree:
         return False
     
     def post_compression_pass(self, root: Node):
+        """
+        Merge neighbouring blocks that align with each other to further
+        compress.
+        """
         merged = True
         while merged:            
             merged = False
@@ -123,6 +127,9 @@ class KdTree:
                     
         
     def find_split(self, node: Node):
+        """
+        Find the best axis and index to split the block.
+        """
         best_axis = None
         best_index = 0
         min_centre_dist = max(node.width, node.height, node.depth)
@@ -159,6 +166,10 @@ class KdTree:
         return (best_axis, best_index)
     
     def build_kd_tree(self, node):
+        """
+        Build the k-d tree of compressed blocks.
+        """
+        
         split_axis, split_index = self.find_split(node)
         
         if node.is_uniform:
