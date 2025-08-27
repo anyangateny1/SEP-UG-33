@@ -7,72 +7,82 @@ class KdTree:
     def __init__(self, slices: SlicesSection, tag_table):
         self.slices = slices
         self.tag_table = tag_table
+        
+    def find_split(self, block: Block):
+        best_axis = None
+        best_index = 0
+        min_centre_dist = max(block.width, block.height, block.depth)
+        block.is_uniform = True
+        for z in range(block.z, block.z + block.depth):
+            for y in range(block.y, block.y + block.height):
+                for x in range(block.x, block.x + block.width):
+                    current_tag = self.slices.get_block_tag(x, y, z)
+                    if (x + 1 < block.x + block.width) and (current_tag != self.slices.get_block_tag(x + 1, y, z)):
+                        centre_dist = abs(x - (block.x + (block.width // 2)))
+                        if centre_dist < min_centre_dist:
+                            best_axis = 'x'
+                            best_index = x
+                            min_centre_dist = centre_dist
+                        
+                        block.is_uniform = False
+                    if (y + 1 < block.y + block.height) and (current_tag != self.slices.get_block_tag(x, y + 1, z)):
+                        centre_dist = abs(y - (block.y + (block.height // 2)))
+                        if centre_dist < min_centre_dist:
+                            best_axis = 'y'
+                            best_index = y
+                            min_centre_dist = centre_dist
+                        
+                        block.is_uniform = False
+                    if (z + 1 < block.z + block.depth) and (current_tag != self.slices.get_block_tag(x, y, z + 1)):
+                        centre_dist = abs(z - (block.z + (block.depth // 2)))
+                        if centre_dist < min_centre_dist:
+                            best_axis = 'z'
+                            best_index = z
+                            min_centre_dist = centre_dist
+                            
+                        block.is_uniform = False
+                        
+        return (best_axis, best_index)
     
-    def build_kd_tree(self, block, split_axis='x'):
-        is_uniform, split_x, split_y, split_z = block.check_is_uniform(self.slices, split_axis)
-        if is_uniform:
+    def build_kd_tree(self, block):
+        split_axis, split_index = self.find_split(block)
+        
+        if block.is_uniform:
             block.print_block(self.tag_table[block.tag])
             return
         
         match split_axis:
             case 'x':
-                next_split = 'y'
-                
-                if block.width == 1:
-                    self.build_kd_tree(block, next_split)
-                    return
-                
-                if split_x == block.x:
-                    split_x = block.x + 1
-                    
-                # left < X
+                # left <= X
                 left_x, left_y, left_z = (block.x, block.y, block.z)
-                left_w, left_h, left_d = (split_x - block.x, block.height, block.depth)
-                
-                # right >= X
-                right_x, right_y, right_z = (split_x, block.y, block.z)
-                right_w, right_h, right_d = (block.width - (split_x - block.x), block.height, block.depth)
+                left_w, left_h, left_d = (split_index - block.x + 1, block.height, block.depth)
+
+                # right > X
+                right_x, right_y, right_z = (split_index + 1, block.y, block.z)
+                right_w, right_h, right_d = (block.x + block.width - (split_index + 1), block.height, block.depth)
 
             case 'y':
-                next_split = 'z'
-                
-                if block.height == 1:
-                    self.build_kd_tree(block, next_split)
-                    return
-                
-                if split_y == block.y:
-                    split_y = block.y + 1
-                
-                # left < Y
+                # left <= Y
                 left_x, left_y, left_z = (block.x, block.y, block.z)
-                left_w, left_h, left_d = (block.width, split_y - block.y, block.depth)
+                left_w, left_h, left_d = (block.width, split_index - block.y + 1, block.depth)
                 
-                # right >= Y
-                right_x, right_y, right_z = (block.x, split_y, block.z)
-                right_w, right_h, right_d = (block.width, block.height - (split_y - block.y), block.depth)
+                # right > Y
+                right_x, right_y, right_z = (block.x, split_index + 1, block.z)
+                right_w, right_h, right_d = (block.width, block.y + block.height - (split_index + 1), block.depth)
                 
             case 'z':
-                next_split = 'x'
-                
-                if block.depth == 1:
-                    self.build_kd_tree(block, next_split)
-                    return
-                
-                if split_z == block.z:
-                    split_z = block.z + 1
-                
-                # left < Z
+                # left <= Z
                 left_x, left_y, left_z = (block.x, block.y, block.z)
-                left_w, left_h, left_d = (block.width, block.height, split_z - block.z)
+                left_w, left_h, left_d = (block.width, block.height, split_index - block.z + 1)
                 
-                # right >= Z
-                right_x, right_y, right_z = (block.x, block.y, split_z)
-                right_w, right_h, right_d = (block.width, block.height, block.depth - (split_z - block.z))
+                # right > Z
+                right_x, right_y, right_z = (block.x, block.y, split_index + 1)
+                right_w, right_h, right_d = (block.width, block.height, block.z + block.depth - (split_index + 1))
             
         left_tag = self.slices.get_block_tag(left_x, left_y, left_z)
         left_block = Block(left_x, left_y, left_z, left_w, left_h, left_d, left_tag)
-        self.build_kd_tree(left_block, next_split)
+        self.build_kd_tree(left_block)
         
         right_tag = self.slices.get_block_tag(right_x, right_y, right_z)
         right_block = Block(right_x, right_y, right_z, right_w, right_h, right_d, right_tag)
-        self.build_kd_tree(right_block, next_split)
+        self.build_kd_tree(right_block)
