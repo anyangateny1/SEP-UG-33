@@ -1,7 +1,7 @@
-from slices_section import SlicesSection
 from block import Block
-from node import Node
-from kd_tree import KdTree
+from block_growth import BlockGrowth
+
+import numpy as np
 
 class BlockModel:
     def read_specification(self):
@@ -41,21 +41,25 @@ class BlockModel:
         Reads the 3D block model from stdin.
         Each slice of the model is seperated by an empty line in input.
         
+        Stores depth slices of up to parent block thickness. 
+        
         The model is stored as a 3D NumPy array attribute:
         self.model[y, x, z]
-        """
-        self.slices = SlicesSection(self.x_count, self.y_count, self.parent_z)
-        slices_count = 0
+        """        
+        self.model = np.empty((self.parent_z, self.y_count, self.x_count), dtype = 'U1')
+        
+        top_slice = 0
+        n_slices = self.parent_z
         for z in range(self.z_count): 
             for y in range(self.y_count):
                 line = input()
                 for x, block_tag in enumerate(line):
-                    self.slices.set_block_tag(x, y, z, block_tag)
+                    self.model[z % self.parent_z, y, x] = block_tag
             
             # Compress slices of parent block thickness
             if (z+1) % self.parent_z == 0:
-                self.compress_slices()
-                self.slices.top_slice = z + 1
+                self.compress_slices(top_slice, n_slices)
+                top_slice = z + 1
             
             # Skip empty line
             if z < self.z_count-1:
@@ -63,28 +67,28 @@ class BlockModel:
         
         # Remaining slices less than parent block thickenss
         if self.z_count % self.parent_z != 0:
-            self.slices.n = self.z_count % self.parent_z
-            self.compress_slices()
+            n_slices = self.z_count % self.parent_z
+            self.compress_slices(top_slice, n_slices)
         
 
-    def compress_slices(self):
+    def compress_slices(self, top_slice, n_slices):
         """
-        Outputs every block in required format:
-        x,y,z,1,1,1,label
+        Compresses a section of slices of parent block thickness.
         """
         for y in range(0, self.y_count, self.parent_y):
             for x in range(0, self.x_count, self.parent_x):
-                z = self.slices.top_slice
+                z = top_slice
                 width = min(self.parent_x, self.x_count - x)
                 height = min(self.parent_y, self.y_count - y)
-                depth = self.slices.n
-                tag = self.slices.get_block_tag(x, y, z)
+                depth = n_slices
+                tag = self.model[z % self.parent_z, y, x]
                 
-                node = Node(x, y, z, width, height, depth, tag)
-                kd_tree = KdTree(self.slices, self.tag_table, self.parent_x, self.parent_y, self.parent_z)
-                kd_tree.build_kd_tree(node)
+                parent_block = Block(x, y, z, width, height, depth, tag)
+                model_slices = self.model[:depth, y:parent_block.y_end, x:parent_block.x_end]
+                block_growth = BlockGrowth(model_slices, self.tag_table)
                 
-                kd_tree.post_compression_pass(node)
+                block_growth.run(parent_block)
+                
         
 def main():
     block_model = BlockModel()
