@@ -1,32 +1,35 @@
-#include <bits/stdc++.h>
-using namespace std;
+#include <iostream>
+#include <vector>
+#include <string>
+#include <unordered_map>
+#include <cctype>
 
 // Dimensions match python script
 static constexpr int WIDTH  = 65;
 static constexpr int HEIGHT = 16;
 static constexpr int DEPTH  = 5;
 
-static inline string trim(const string& s) {
+static inline std::string trim(const std::string& s) {
     size_t a = 0, b = s.size();
-    while (a < b && isspace(static_cast<unsigned char>(s[a]))) ++a;
-    while (b > a && isspace(static_cast<unsigned char>(s[b-1]))) --b;
+    while (a < b && std::isspace(static_cast<unsigned char>(s[a]))) ++a;
+    while (b > a && std::isspace(static_cast<unsigned char>(s[b-1]))) --b;
     return s.substr(a, b - a);
 }
 
 int main() {
-    ios::sync_with_stdio(false);
-    cin.tie(nullptr);
+    std::ios::sync_with_stdio(false);
+    std::cin.tie(nullptr);
 
     // model[z][y][x]
-    vector<vector<vector<char>>> model(
-        DEPTH, vector<vector<char>>(HEIGHT, vector<char>(WIDTH, '\0'))
+    std::vector<std::vector<std::vector<char>>> model(
+        DEPTH, std::vector<std::vector<char>>(HEIGHT, std::vector<char>(WIDTH, '\0'))
     );
-    vector<vector<vector<bool>>> seen(
-        DEPTH, vector<vector<bool>>(HEIGHT, vector<bool>(WIDTH, false))
+    std::vector<std::vector<std::vector<bool>>> seen(
+        DEPTH, std::vector<std::vector<bool>>(HEIGHT, std::vector<bool>(WIDTH, false))
     );
 
     // label -> char (same as Python label_table)
-    unordered_map<string, char> label_table = {
+    std::unordered_map<std::string, char> label_table = {
         {"sea", 'o'},
         {"WA",  'w'},
         {"NT",  'n'},
@@ -37,17 +40,17 @@ int main() {
         {"TAS", 't'}
     };
 
-    string line;
+    std::string line;
     while (true) {
-        if (!getline(cin, line)) break;     // EOF
+        if (!std::getline(std::cin, line)) break;     // EOF
         if (!line.empty() && line.back() == '\r') line.pop_back();
         line = trim(line);
         if (line.empty()) break;
 
         // Split by commas
-        vector<string> parts;
+        std::vector<std::string> parts;
         {
-            string cur;
+            std::string cur;
             for (char c : line) {
                 if (c == ',') {
                     parts.push_back(trim(cur));
@@ -60,21 +63,21 @@ int main() {
         }
 
         if (parts.size() != 7) {
-            cerr << "Invalid line (need 7 fields): " << line << "\n";
+            std::cerr << "Invalid line (need 7 fields): " << line << "\n";
             continue;
         }
 
-        int x   = stoi(parts[0]);
-        int y   = stoi(parts[1]);
-        int z   = stoi(parts[2]);
-        int bw  = stoi(parts[3]);
-        int bh  = stoi(parts[4]);
-        int bd  = stoi(parts[5]);
-        string label = parts[6];
+        int x   = std::stoi(parts[0]);
+        int y   = std::stoi(parts[1]);
+        int z   = std::stoi(parts[2]);
+        int bw  = std::stoi(parts[3]);
+        int bh  = std::stoi(parts[4]);
+        int bd  = std::stoi(parts[5]);
+        std::string label = parts[6];
 
         auto it = label_table.find(label);
         if (it == label_table.end()) {
-            cerr << "Unknown label \"" << label << "\"; skipping line.\n";
+            std::cerr << "Unknown label \"" << label << "\"; skipping line.\n";
             continue;
         }
         char tag = it->second;
@@ -91,7 +94,7 @@ int main() {
                     if (xx < 0 || xx >= WIDTH) continue;
 
                     if (seen[zz][yy][xx]) {
-                        cout << "(" << xx << ", " << yy << ", " << zz << ") appears twice\n";
+                        std::cout << "(" << xx << ", " << yy << ", " << zz << ") appears twice\n";
                     }
                     seen[zz][yy][xx] = true;
                     model[zz][yy][xx] = tag;
@@ -107,14 +110,14 @@ int main() {
             for (int x = 0; x < WIDTH; ++x) {
                 char c = model[z][y][x];
                 if (c == '\0') {
-                    cout << '-';
+                    std::cout << '-';
                 } else {
-                    cout << c;
+                    std::cout << c;
                 }
             }
-            cout << "\n";
+            std::cout << "\n";
         }
-        cout << "\n";
+        std::cout << "\n";
     }
 
     return 0;
