@@ -1,102 +1,83 @@
-# Build directories and artifacts
+# Build directories
 build/
-bin/
-obj/
+build-*/
 out/
 
-# Compiled binaries
-*.exe
-*.out
-*.app
-*.dll
-*.so
-*.dylib
-*.a
-*.lib
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+compile_commands.json
+CTestTestfile.cmake
+Testing/
 
-# Object files
+# vcpkg
+vcpkg_installed/
+.vcpkg-root
+
+# IDE files
+.vs/
+.vscode/settings.json
+.vscode/launch.json
+.vscode/tasks.json
+*.user
+*.suo
+*.sdf
+*.opensdf
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+
+# Compiler outputs
 *.o
 *.obj
-
-# Archive files
-*.zip
-*.tar
-*.tar.gz
-*.rar
-*.7z
-
-# IDE and Editor files
-.vscode/
-.vs/
-*.swp
-*.swo
-*~
-.idea/
-*.sublime-*
-
-# OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-desktop.ini
+*.a
+*.lib
+*.so
+*.dll
+*.exe
 
 # Temporary files
 *.tmp
 *.temp
-*.log
-*.cache
-
-# Package manager directories
-node_modules/
-vendor/
-
-# Environment files
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# CMake files
-CMakeCache.txt
-CMakeFiles/
-cmake_install.cmake
-Makefile.bak
-
-# Debug files
-*.dSYM/
-*.pdb
-*.ilk
-
-# Coverage reports
-*.gcov
-*.gcno
-*.gcda
-coverage/
-htmlcov/
-
-# Profiling data
-*.prof
-gmon.out
-
-# Core dumps
-core
-core.*
-
-# Backup files
-*.bak
-*.backup
 *~
+.#*
+#*#
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Package files
+*.zip
+*.tar.gz
+*.tar.bz2
 
 # Documentation build
 docs/_build/
 docs/html/
 docs/latex/
 
-# Local configuration
-config.local
-settings.local
+# LaTeX files (source and build artifacts)
+*.aux
+*.log
+*.out
+*.toc
+*.synctex.gz
+*.fdb_latexmk
+*.fls
+
+# Ignore everything in docs/ except PDF files
+docs/*
+!docs/*.pdf
+
+# Profiling and debugging
+*.gcno
+*.gcda
+*.gcov
+callgrind.out.*
+vgcore.*
+
+# Clang tools
+.clang-format
+.clang-tidy
