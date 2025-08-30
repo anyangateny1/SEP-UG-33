@@ -48,11 +48,16 @@ $(WINDOWS_TARGET): $(SOURCES) | $(BUILD_DIR)
 windows-zip: $(WINDOWS_TARGET)
 	cd $(BUILD_DIR) && zip -j block_model.exe.zip block_model.exe
 
-# Windows package - complete build and packaging process
-windows-package: install-mingw windows windows-zip
+# Windows package - complete build and packaging process using CMake
+windows-package: install-mingw
+	@echo "Building Windows executable using CMake preset..."
+	cmake --preset windows-mingw
+	cmake --build build/windows-mingw
+	@echo "Creating Windows package..."
+	cd build/windows-mingw && zip -j block_model.exe.zip block_model.exe
 	@echo "Windows executable packaged successfully!"
-	@echo "File: $(BUILD_DIR)/block_model.exe.zip"
-	@ls -la $(BUILD_DIR)/block_model.exe.zip
+	@echo "File: build/windows-mingw/block_model.exe.zip"
+	@ls -la build/windows-mingw/block_model.exe.zip
 
 # Test executables
 test: $(VALIDATE_TEST_TARGET) $(COMPRESSION_TEST_TARGET)
@@ -137,7 +142,7 @@ help:
 	@echo "  all            - Build the main executable (default)"
 	@echo "  windows        - Cross-compile for Windows"
 	@echo "  windows-zip    - Create Windows executable zip file"
-	@echo "  windows-package- Complete Windows build and packaging (installs MinGW if needed)"
+	@echo "  windows-package- Complete Windows build and packaging using CMake preset (installs MinGW if needed)"
 	@echo "  test               - Build both test executables"
 	@echo "  test-all           - Run all tests (unit + integration)"
 	@echo "  test-compression-unit - Run compression algorithm unit tests"
@@ -155,8 +160,8 @@ help:
 	@echo "  help           - Show this help message"
 	@echo ""
 	@echo "Windows Packaging Workflow:"
-	@echo "  1. make windows-package  # Installs MinGW, builds, and packages"
-	@echo "  2. Submit build/block_model.exe.zip"
+	@echo "  1. make windows-package  # Uses CMake preset, installs MinGW, builds, and packages"
+	@echo "  2. Submit build/windows-mingw/block_model.exe.zip"
 
 # Phony targets
 .PHONY: all windows windows-zip windows-package test test-all test-compression-unit test-integration clean clean-all install-deps install-mingw run-case1 run-case2 run-validate-test run-compression-test validate-case1 validate-case2 help
