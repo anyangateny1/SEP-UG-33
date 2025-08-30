@@ -1,0 +1,23 @@
+{
+  "name": "sep-ug-33-block-model",
+  "version": "1.0.0",
+  "description": "3D Block Model Compression Algorithm",
+  "homepage": "https://github.com/your-org/SEP-UG-33",
+  "documentation": "https://github.com/your-org/SEP-UG-33/blob/main/README.md",
+  "license": "MIT",
+  "dependencies": [
+  ],
+  "features": {
+    "testing": {
+      "description": "Build with testing framework support",
+      "dependencies": [
+      ]
+    },
+    "benchmarking": {
+      "description": "Build with benchmarking support",
+      "dependencies": [
+      ]
+    }
+  },
+  "builtin-baseline": "2024-01-01"
+}
