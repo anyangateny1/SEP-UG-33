@@ -18,6 +18,9 @@ public:
     // Size (dimensions) of the block
     int width, height, depth;
 
+    // Volume of the block
+    int volume;
+
     // Absolute end coordinates (exclusive)
     int x_end, y_end, z_end;
 
