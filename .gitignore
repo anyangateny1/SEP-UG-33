@@ -17,9 +17,7 @@ vcpkg_installed/
 
 # IDE files
 .vs/
-.vscode/settings.json
-.vscode/launch.json
-.vscode/tasks.json
+.vscode/
 *.user
 *.suo
 *.sdf

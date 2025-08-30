@@ -48,6 +48,7 @@ private:
         
         try {
             BlockModel bm;
+            bm.enable_multithreading(false); // Use single-threaded for deterministic testing
             bm.read_specification();
             bm.read_tag_table();
             
@@ -97,6 +98,7 @@ private:
         
         try {
             BlockModel bm;
+            bm.enable_multithreading(false); // Use single-threaded for deterministic testing
             bm.read_specification();
             bm.read_tag_table();
             

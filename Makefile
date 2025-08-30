@@ -14,10 +14,10 @@ TEST_DIR = tests
 DATA_DIR = tests/data
 
 # Source files
-SOURCES = $(SRC_DIR)/main.cpp $(SRC_DIR)/block.cpp $(SRC_DIR)/block_growth.cpp $(SRC_DIR)/block_model.cpp
+SOURCES = $(SRC_DIR)/main.cpp $(SRC_DIR)/block.cpp $(SRC_DIR)/block_growth.cpp $(SRC_DIR)/block_model.cpp $(SRC_DIR)/thread_pool_std.cpp $(SRC_DIR)/output_manager_std.cpp
 OBJECTS = $(SOURCES:$(SRC_DIR)/%.cpp=$(BUILD_DIR)/%.o)
 # Library objects (without main.cpp)
-LIB_OBJECTS = $(BUILD_DIR)/block.o $(BUILD_DIR)/block_growth.o $(BUILD_DIR)/block_model.o
+LIB_OBJECTS = $(BUILD_DIR)/block.o $(BUILD_DIR)/block_growth.o $(BUILD_DIR)/block_model.o $(BUILD_DIR)/thread_pool_std.o $(BUILD_DIR)/output_manager_std.o
 TARGET = $(BUILD_DIR)/block_model
 WINDOWS_TARGET = $(BUILD_DIR)/block_model.exe
 

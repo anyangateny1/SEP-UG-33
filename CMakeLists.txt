@@ -55,7 +55,7 @@ if(DEFINED CMAKE_TOOLCHAIN_FILE)
 endif()
 
 # Find packages (will be managed by vcpkg when available)
-# Currently this project uses standard library only, but ready for future dependencies
+# Using standard library threading - no external dependencies required
 
 # Include directories
 include_directories(include)
@@ -65,6 +65,8 @@ set(CORE_SOURCES
     src/block.cpp
     src/block_growth.cpp
     src/block_model.cpp
+    src/thread_pool_std.cpp
+    src/output_manager_std.cpp
 )
 
 set(MAIN_SOURCE src/main.cpp)
@@ -72,6 +74,13 @@ set(MAIN_SOURCE src/main.cpp)
 # Create a library for core functionality (useful for testing)
 add_library(block_model_core STATIC ${CORE_SOURCES})
 target_include_directories(block_model_core PUBLIC include)
+
+# Link threading library
+if(WIN32)
+    # Windows threading is built into the standard library
+elseif(UNIX)
+    target_link_libraries(block_model_core PUBLIC pthread)
+endif()
 
 # Main executable
 add_executable(block_model ${MAIN_SOURCE})
@@ -85,15 +94,26 @@ add_executable(compression_test tests/compression_test.cpp)
 target_link_libraries(compression_test PRIVATE block_model_core)
 target_include_directories(compression_test PRIVATE include)
 
+# Threading test
+add_executable(threading_test tests/threading_test.cpp)
+target_link_libraries(threading_test PRIVATE block_model_core)
+target_include_directories(threading_test PRIVATE include)
+
 # Validation test
 add_executable(validate_test tests/validate_test.cpp)
 target_include_directories(validate_test PRIVATE include)
+
+# Benchmark executable
+add_executable(benchmark src/benchmark.cpp)
+target_link_libraries(benchmark PRIVATE block_model_core)
+target_include_directories(benchmark PRIVATE include)
 
 # Test data files
 file(COPY tests/data DESTINATION ${CMAKE_BINARY_DIR}/tests)
 
 # CTest integration
 add_test(NAME CompressionTests COMMAND compression_test)
+add_test(NAME ThreadingTests COMMAND threading_test)
 
 # ValidationTests - Skip standalone test since it requires input
 # The validation functionality is tested via integration tests
@@ -128,8 +148,22 @@ add_custom_target(run-case2
 
 add_custom_target(test-all
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-    DEPENDS compression_test validate_test block_model
+    DEPENDS compression_test threading_test validate_test block_model
     COMMENT "Running all tests"
+)
+
+add_custom_target(benchmark-performance
+    COMMAND benchmark ${CMAKE_SOURCE_DIR}/tests/data/case1.txt
+    DEPENDS benchmark
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+    COMMENT "Running performance benchmark"
+)
+
+add_custom_target(test-threading
+    COMMAND threading_test
+    DEPENDS threading_test
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+    COMMENT "Running threading tests"
 )
 
 # Installation rules

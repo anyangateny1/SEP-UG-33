@@ -4,10 +4,15 @@
 #include <iostream>
 #include <stdexcept>
 #include <vector>
+#include <memory>
 
 using std::string;
 using std::unordered_map;
 using std::vector;
+
+BlockModel::BlockModel() : multithreading_enabled(false), thread_count(0) {
+    output_manager.set_multithreaded(false);
+}
 
 void BlockModel::read_specification() {
     // Line: x_count, y_count, z_count, parent_x, parent_y, parent_z
@@ -119,21 +124,91 @@ Vec3<char> BlockModel::slice_model(const Vec3<char>& src,
     return out;
 }
 
+void BlockModel::enable_multithreading(bool enable) {
+    multithreading_enabled = enable;
+    output_manager.set_multithreaded(enable);
+}
+
+void BlockModel::set_thread_count(size_t count) {
+    thread_count = (count == 0) ? ThreadPoolStd::get_optimal_thread_count() : count;
+}
+
 void BlockModel::compress_slices(int top_slice, int n_slices) {
+    if (multithreading_enabled) {
+        compress_slices_parallel(top_slice, n_slices);
+    } else {
+        // Original single-threaded implementation
+        for (int y = 0; y < y_count; y += parent_y) {
+            for (int x = 0; x < x_count; x += parent_x) {
+                int z = top_slice;
+                int width  = std::min(parent_x, x_count - x);
+                int height = std::min(parent_y, y_count - y);
+                int depth  = n_slices;
+                char tag = model[z % parent_z][y][x];
+
+                Block parentBlock(x, y, z, width, height, depth, tag);
+                // model_slices = model[:depth, y:parentBlock.y_end, x:parentBlock.x_end]
+                Vec3<char> model_slices = slice_model(model, depth, y, parentBlock.y_end, x, parentBlock.x_end);
+
+                BlockGrowth growth(model_slices, tag_table);
+                if (multithreading_enabled) {
+                    growth.enable_internal_multithreading(true, 2); // Enable internal MT for DFS
+                }
+                growth.run(parentBlock);
+            }
+        }
+    }
+}
+
+void BlockModel::compress_slices_parallel(int top_slice, int n_slices) {
+    if (thread_count == 0) {
+        set_thread_count(0); // Auto-detect
+    }
+    
+    ThreadPoolStd pool(thread_count);
+    
+    // Create a snapshot of the model for thread safety
+    Vec3<char> model_snapshot = model;
+    
+    size_t order_index = 0;
+    
     for (int y = 0; y < y_count; y += parent_y) {
         for (int x = 0; x < x_count; x += parent_x) {
             int z = top_slice;
             int width  = std::min(parent_x, x_count - x);
             int height = std::min(parent_y, y_count - y);
             int depth  = n_slices;
-            char tag = model[z % parent_z][y][x];
-
-            Block parentBlock(x, y, z, width, height, depth, tag);
-            // model_slices = model[:depth, y:parentBlock.y_end, x:parentBlock.x_end]
-            Vec3<char> model_slices = slice_model(model, depth, y, parentBlock.y_end, x, parentBlock.x_end);
-
-            BlockGrowth growth(model_slices, tag_table);
-            growth.run(parentBlock);
+            
+            // Submit task to thread pool
+            pool.submit([this, x, y, z, width, height, depth, order_index, model_snapshot]() {
+                compress_single_parent_block(x, y, z, width, height, depth, order_index, model_snapshot);
+            });
+            
+            ++order_index;
         }
     }
+    
+    // Wait for all tasks to complete
+    pool.wait_for_all();
+    
+    // Print any remaining results
+    output_manager.print_all_results();
+}
+
+void BlockModel::compress_single_parent_block(int x, int y, int z, int width, int height, int depth, 
+                                             size_t order_index, const Vec3<char>& model_snapshot) {
+    char tag = model_snapshot[z % parent_z][y][x];
+    Block parentBlock(x, y, z, width, height, depth, tag);
+    
+    // Extract model slices for this parent block
+    Vec3<char> model_slices = slice_model(model_snapshot, depth, y, parentBlock.y_end, x, parentBlock.x_end);
+    
+    // Run compression and capture output
+    BlockGrowth growth(model_slices, tag_table);
+    // Always enable internal multi-threading for parallel parent block processing
+    growth.enable_internal_multithreading(true, 2);
+    std::string block_output = growth.run_and_capture(parentBlock);
+    
+    // Add result to output manager with proper ordering
+    output_manager.add_block_result(order_index, block_output);
 }
