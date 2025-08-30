@@ -44,53 +44,82 @@ SEP-UG-33/
 
 ## Building the Project
 
-### Prerequisites
+### Modern Build System (CMake) - Recommended
 
-- g++ compiler with C++17 support
-- make utility
-- For Windows cross-compilation: mingw-w64
+The project now uses CMake as the primary build system for better cross-platform support and modern C++ toolchain integration.
 
-Install dependencies on Ubuntu/Debian:
-```bash
-make install-deps
-```
+#### Prerequisites
 
-### Quick Start
+- CMake 3.16+
+- C++17 compatible compiler (GCC 7+, Clang 7+, MSVC 2019+)
+- Ninja build system (recommended) or Make
+- Optional: vcpkg for dependency management
+
+#### Quick Start
 
 ```bash
 # Clone and enter the project
 cd SEP-UG-33
 
+# Set up development environment (automated)
+./scripts/setup-dev-environment.sh
+
+# Or manual setup:
+# Configure and build
+cmake --preset release
+cmake --build build/release
+
+# Run tests
+ctest --test-dir build/release
+
+# Run with sample data
+cmake --build build/release --target run-case1
+```
+
+#### Build Commands
+
+```bash
+# Linux development builds
+cmake --preset debug           # Debug build (Linux)
+cmake --preset release         # Release build (Linux) 
+cmake --build build/release    # Build Linux executable
+
+# Windows submission (choose one method)
+cmake --preset windows-mingw   # Windows cross-compilation (CMake)
+cmake --build build/windows-mingw
+# OR (easier)
+make windows-package           # One-command Windows .exe.zip creation
+
+# Testing
+ctest --test-dir build/release --output-on-failure
+cmake --build build/release --target test-all
+
+# Utility targets
+cmake --build build/release --target run-case1
+cmake --build build/release --target run-case2
+cmake --build build/release --target format  # Code formatting
+cmake --build build/release --target lint    # Static analysis
+```
+
+### Legacy Build System (Makefile) - Still Supported
+
+For compatibility, the original Makefile is still available:
+
+#### Prerequisites
+
+- g++ compiler with C++17 support
+- make utility
+- For Windows cross-compilation: mingw-w64
+
+```bash
+# Install dependencies on Ubuntu/Debian
+make install-deps
+
 # Build everything and run tests
 make test-all
 
-# Run with sample data
-make run-case1
-
 # Create Windows package for submission
 make windows-package
-```
-
-### Build Commands
-
-```bash
-# Build the main executable
-make
-
-# Cross-compile for Windows
-make windows
-
-# Create Windows executable zip (as per original requirements)
-make windows-zip
-
-# Complete Windows packaging (installs MinGW if needed, builds, and packages)
-make windows-package
-
-# Build test executable
-make test
-
-# Clean build artifacts
-make clean
 ```
 
 ### Windows Deployment
@@ -196,6 +225,36 @@ $ make test-all
 # Shows comprehensive pass/fail status for all components
 ```
 
+## Development Standards
+
+This project follows comprehensive development standards to ensure code quality, consistency, and maintainability. See detailed documentation:
+
+- **[Development Standards](docs/DEVELOPMENT_STANDARDS.md)** - Complete development guidelines
+- **[Developer Setup](docs/DEVELOPER_SETUP.md)** - Environment setup instructions
+
+### Key Standards
+
+- **Build System**: CMake 3.16+ with vcpkg for dependencies
+- **C++ Standard**: C++17 with strict compiler warnings
+- **Code Style**: Google-based style with 4-space indentation
+- **Testing**: Comprehensive unit and integration tests
+- **CI/CD**: Automated testing across platforms
+
+### Quick Development Setup
+
+```bash
+# 🚀 One-command setup (recommended)
+./scripts/setup-dev-environment.sh
+
+# 📖 Complete documentation  
+# See docs/development-environment.pdf & docs/coding-standards.pdf
+
+# ⚡ Manual verification
+cmake --preset release
+cmake --build build/release
+ctest --test-dir build/release
+```
+
 ## Development Workflow
 
 ### Git Workflow
@@ -221,6 +280,27 @@ Examples:
 - `chore: update React to v18`
 
 **Pull request must be approved by someone other than branch-owner before push to main.**
+
+### Code Quality Standards
+
+Before submitting a PR:
+
+```bash
+# 🎨 Format code (required)
+cmake --build build --target format
+
+# 🔍 Run static analysis
+cmake --build build --target lint
+
+# ✅ Run all tests
+cmake --build build --target test-all
+
+# 🪟 Verify cross-platform build
+cmake --preset windows-mingw
+cmake --build build/windows-mingw
+
+# 📚 Full guides: docs/development-environment.tex & docs/coding-standards.tex
+```
 
 ### Available Make Targets
 
