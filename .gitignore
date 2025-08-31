@@ -79,5 +79,4 @@ callgrind.out.*
 vgcore.*
 
 # Clang tools
-.clang-format
 .clang-tidy
