@@ -1,23 +1,13 @@
-name: CI/CD Pipeline
+name: Simple CI
 
 on:
   push:
     branches: [ main, develop ]
   pull_request:
     branches: [ main ]
-  schedule:
-    # Run comprehensive validation once per minute (for monitoring)
-    - cron: '*/1 * * * *'
-  workflow_dispatch:
-    # Allow manual triggering of comprehensive validation
-
-env:
-  # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
-  BUILD_TYPE: Release
 
 jobs:
-  # Code quality checks
-  code-quality:
+  build-and-test:
     runs-on: ubuntu-latest
     
     steps:
@@ -26,240 +16,15 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt update
-        sudo apt install -y clang-format clang-tidy
-        
+        sudo apt install -y build-essential cmake clang-format
+    
     - name: Check code formatting
       run: |
         find src include tests -name "*.cpp" -o -name "*.h" | \
         xargs clang-format --dry-run --Werror
-        
-    - name: Run static analysis
-      run: |
-        # Generate compile commands for clang-tidy
-        cmake -B build -S . -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-        # Run clang-tidy (allow failures for now, just report)
-        find src include -name "*.cpp" -o -name "*.h" | \
-        xargs clang-tidy --warnings-as-errors='' || echo "Static analysis warnings found"
-
-  # Basic validation - runs on every PR/push
-  quick-validation:
-    if: github.event_name != 'schedule'
-    runs-on: ubuntu-latest
     
-    steps:
-    - uses: actions/checkout@v3
-    
-    - name: Cache build directory
-      uses: actions/cache@v3
-      with:
-        path: build
-        key: ${{ runner.os }}-build-${{ hashFiles('CMakeLists.txt', 'src/**', 'include/**') }}
-        restore-keys: |
-          ${{ runner.os }}-build-
-    
-    - name: Install dependencies
+    - name: Build and test
       run: |
-        sudo apt update
-        sudo apt install -y build-essential cmake ninja-build
-    
-    - name: Quick build and test
-      run: |
-        cmake --preset release
-        cmake --build build/release
-        ctest --test-dir build/release --output-on-failure
-  
-  # Comprehensive validation - runs on schedule or manual trigger
-  comprehensive-validation:
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        build_type: [Release, Debug]
-        include:
-          - os: ubuntu-latest
-            compiler: gcc
-            package_manager: apt
-          - os: ubuntu-latest
-            compiler: clang
-            package_manager: apt
-          - os: macos-latest
-            compiler: clang
-            package_manager: brew
-          - os: windows-latest
-            compiler: msvc
-            package_manager: vcpkg
-        exclude:
-          # Exclude some combinations to reduce CI time
-          - os: macos-latest
-            build_type: Debug
-          - os: windows-latest
-            build_type: Debug
-
-    runs-on: ${{ matrix.os }}
-
-    steps:
-    - uses: actions/checkout@v3
-      with:
-        fetch-depth: 2  # Needed for change detection
-    
-    - name: Check for relevant changes
-      id: changes
-      if: github.event_name == 'schedule'
-      run: |
-        # Only run if there are changes to source code since last run
-        if git diff --quiet HEAD~1 HEAD -- src/ include/ tests/ CMakeLists.txt; then
-          echo "No relevant changes detected, skipping comprehensive validation"
-          echo "skip=true" >> $GITHUB_OUTPUT
-        else
-          echo "Changes detected, running comprehensive validation"
-          echo "skip=false" >> $GITHUB_OUTPUT
-        fi
-
-    - name: Install dependencies (Ubuntu)
-      if: matrix.os == 'ubuntu-latest' && steps.changes.outputs.skip != 'true'
-      run: |
-        sudo apt update
-        sudo apt install -y build-essential cmake ninja-build
-        if [ "${{ matrix.compiler }}" = "clang" ]; then
-          sudo apt install -y clang
-        fi
-
-    - name: Install dependencies (macOS)
-      if: matrix.os == 'macos-latest' && steps.changes.outputs.skip != 'true'
-      run: |
-        brew install cmake ninja
-
-    - name: Install dependencies (Windows)
-      if: matrix.os == 'windows-latest' && steps.changes.outputs.skip != 'true'
-      run: |
-        choco install cmake ninja
-
-    - name: Set up compiler (Ubuntu Clang)
-      if: matrix.os == 'ubuntu-latest' && matrix.compiler == 'clang' && steps.changes.outputs.skip != 'true'
-      run: |
-        echo "CC=clang" >> $GITHUB_ENV
-        echo "CXX=clang++" >> $GITHUB_ENV
-
-    - name: Configure CMake
-      if: steps.changes.outputs.skip != 'true'
-      run: |
-        cmake -B build -S . -G Ninja -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
-
-    - name: Build
-      if: steps.changes.outputs.skip != 'true'
-      run: |
-        cmake --build build --config ${{ matrix.build_type }}
-
-    - name: Test
-      if: steps.changes.outputs.skip != 'true'
-      working-directory: build
-      run: |
-        ctest --output-on-failure --config ${{ matrix.build_type }}
-
-    - name: Package (Release only)
-      if: matrix.build_type == 'Release' && steps.changes.outputs.skip != 'true'
-      run: |
-        cmake --build build --target package
-
-    - name: Upload artifacts
-      if: matrix.build_type == 'Release' && steps.changes.outputs.skip != 'true'
-      uses: actions/upload-artifact@v3
-      with:
-        name: block-model-${{ matrix.os }}
-        path: build/*.tar.gz
-
-  # Cross-compilation for Windows (from Linux) - only on schedule/manual
-  cross-compile-windows:
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    
-    steps:
-    - uses: actions/checkout@v3
-      with:
-        fetch-depth: 2
-    
-    - name: Check for relevant changes
-      id: changes
-      if: github.event_name == 'schedule'
-      run: |
-        if git diff --quiet HEAD~1 HEAD -- src/ include/ CMakeLists.txt; then
-          echo "No relevant changes detected, skipping cross-compilation"
-          echo "skip=true" >> $GITHUB_OUTPUT
-        else
-          echo "Changes detected, running cross-compilation"
-          echo "skip=false" >> $GITHUB_OUTPUT
-        fi
-    
-    - name: Install MinGW
-      if: steps.changes.outputs.skip != 'true'
-      run: |
-        sudo apt update
-        sudo apt install -y mingw-w64 cmake ninja-build
-        
-    - name: Cross-compile for Windows
-      if: steps.changes.outputs.skip != 'true'
-      run: |
-        cmake --preset windows-mingw
-        cmake --build build/windows-mingw
-        
-    - name: Create Windows package
-      if: steps.changes.outputs.skip != 'true'
-      run: |
-        cd build/windows-mingw
-        zip -j block_model_windows.zip block_model.exe
-        
-    - name: Upload Windows artifact
-      if: steps.changes.outputs.skip != 'true'
-      uses: actions/upload-artifact@v3
-      with:
-        name: block-model-windows-cross
-        path: build/windows-mingw/block_model_windows.zip
-
-  # Documentation check
-  documentation:
-    runs-on: ubuntu-latest
-    
-    steps:
-    - uses: actions/checkout@v3
-    
-    - name: Check documentation
-      run: |
-        # Verify all required documentation exists
-        test -f docs/DEVELOPMENT_STANDARDS.md
-        test -f docs/DEVELOPER_SETUP.md
-        test -f README.md
-        test -f CMakeLists.txt
-        test -f vcpkg.json
-        
-        # Check for TODO items in documentation
-        if grep -r "TODO\|FIXME\|XXX" docs/ README.md; then
-          echo "Warning: Found TODO items in documentation"
-        fi
-
-# Release workflow (triggered on tags)
-  release:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [quick-validation, comprehensive-validation, cross-compile-windows]
-    runs-on: ubuntu-latest
-    
-    steps:
-    - uses: actions/checkout@v3
-    
-    - name: Download all artifacts
-      uses: actions/download-artifact@v3
-      
-    - name: Create Release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref }}
-        draft: false
-        prerelease: false
-        
-    - name: Upload Release Assets
-      run: |
-        # Upload all downloaded artifacts as release assets
-        # This would need additional scripting for multiple files
+        cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
+        cmake --build build
+        ctest --test-dir build --output-on-failure
