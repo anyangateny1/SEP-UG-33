@@ -90,8 +90,8 @@ Block BlockGrowth::fit_block(char mode, int width, int height, int depth) {
                     window_is_all_uncompressed(z_off, z_end, y_off, y_end, x_off, x_end)) {
 
                     Block b(x, y, z, width, height, depth, mode, x_off, y_off, z_off);
-                    mark_compressed(z_off, z_end, y_off, y_end, x_off, x_end, true);
-                    grow_block(b);
+                    grow_block(b, b);
+                    mark_compressed(z_off, z_off+b.depth, y_off, y_off+b.height, x_off, x_off+b.width, true);
                     return b;
                 }
             }
@@ -129,68 +129,68 @@ void BlockGrowth::mark_compressed(int z0, int z1, int y0, int y1, int x0, int x1
                 compressed[z][y][x] = v;
 }
 
-void BlockGrowth::grow_block(Block& b) {
+void BlockGrowth::grow_block(Block& current, Block& best_block) {
+    Block b = current;
+
     int x = b.x_offset, y = b.y_offset, z = b.z_offset;
     int x_end = x + b.width;
     int y_end = y + b.height;
     int z_end = z + b.depth;
 
-    bool grew = true;
-    while (grew) {
-        grew = false;
-
-        // Try +X growth
-        if (x_end < parent_x_end) {
-            bool ok = true;
-            for (int zz = z; zz < z_end && ok; ++zz)
-                for (int yy = y; yy < y_end && ok; ++yy) {
-                    if (model[zz][yy][x_end] != b.tag) ok = false;
-                    if (compressed[zz][yy][x_end]) ok = false;
-                }
-            if (ok) {
-                b.set_width(b.width + 1);
-                for (int zz = z; zz < z_end; ++zz)
-                    for (int yy = y; yy < y_end; ++yy)
-                        compressed[zz][yy][x_end] = true;
-                x_end += 1;
-                grew = true;
+    // Try +X growth
+    if (x_end < parent_x_end) {
+        bool ok = true;
+        for (int zz = z; zz < z_end && ok; ++zz)
+            for (int yy = y; yy < y_end && ok; ++yy) {
+                if (model[zz][yy][x_end] != b.tag) ok = false;
+                if (compressed[zz][yy][x_end]) ok = false;
             }
-        }
-
-        // Try +Y growth
-        if (y_end < parent_y_end) {
-            bool ok = true;
-            for (int zz = z; zz < z_end && ok; ++zz)
-                for (int xx = x; xx < x_end && ok; ++xx) {
-                    if (model[zz][y_end][xx] != b.tag) ok = false;
-                    if (compressed[zz][y_end][xx]) ok = false;
-                }
-            if (ok) {
-                b.set_height(b.height + 1);
-                for (int zz = z; zz < z_end; ++zz)
-                    for (int xx = x; xx < x_end; ++xx)
-                        compressed[zz][y_end][xx] = true;
-                y_end += 1;
-                grew = true;
-            }
-        }
-
-        // Try +Z growth
-        if (z_end < parent_z_end) {
-            bool ok = true;
-            for (int yy = y; yy < y_end && ok; ++yy)
-                for (int xx = x; xx < x_end && ok; ++xx) {
-                    if (model[z_end][yy][xx] != b.tag) ok = false;
-                    if (compressed[z_end][yy][xx]) ok = false;
-                }
-            if (ok) {
-                b.set_depth(b.depth + 1);
-                for (int yy = y; yy < y_end; ++yy)
-                    for (int xx = x; xx < x_end; ++xx)
-                        compressed[z_end][yy][xx] = true;
-                z_end += 1;
-                grew = true;
-            }
+        if (ok) {
+            b.set_width(b.width + 1);
+            current = b;
+            grow_block(current, best_block);
+            if (current.volume > best_block.volume)
+                best_block = current;
+            b.set_width(b.width - 1);
         }
     }
+
+    // Try +Y growth
+    if (y_end < parent_y_end) {
+        bool ok = true;
+        for (int zz = z; zz < z_end && ok; ++zz)
+            for (int xx = x; xx < x_end && ok; ++xx) {
+                if (model[zz][y_end][xx] != b.tag) ok = false;
+                if (compressed[zz][y_end][xx]) ok = false;
+            }
+        if (ok) {
+            b.set_height(b.height + 1);
+            current = b;
+            grow_block(current, best_block);
+            if (current.volume > best_block.volume)
+                best_block = current;
+            b.set_height(b.height - 1);
+        }
+    }
+
+    // Try +Z growth
+    if (z_end < parent_z_end) {
+        bool ok = true;
+        for (int yy = y; yy < y_end && ok; ++yy)
+            for (int xx = x; xx < x_end && ok; ++xx) {
+                if (model[z_end][yy][xx] != b.tag) ok = false;
+                if (compressed[z_end][yy][xx]) ok = false;
+            }
+        if (ok) {
+            b.set_depth(b.depth + 1);
+            current = b;
+            grow_block(current, best_block);
+            if (current.volume > best_block.volume)
+                best_block = current;
+            b.set_depth(b.depth - 1);
+        }
+    }
+
+    if (b.volume > best_block.volume)
+        best_block = b;
 }

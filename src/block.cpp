@@ -9,21 +9,24 @@ Block::Block(int x_, int y_, int z_,
       x_offset(x_off), y_offset(y_off), z_offset(z_off),
       width(w_), height(h_), depth(d_),
       x_end(x_ + w_), y_end(y_ + h_), z_end(z_ + d_),
-      tag(tag_) {}
+      tag(tag_), volume(w_ * h_ * d_) {}
 
 void Block::set_width(int w) {
     width = w;
     x_end = x + w;
+    volume = width * height * depth;
 }
 
 void Block::set_height(int h) {
     height = h;
     y_end = y + h;
+    volume = width * height * depth;
 }
 
 void Block::set_depth(int d) {
     depth = d;
     z_end = z + d;
+    volume = width * height * depth;
 }
 
 void Block::print_block(const std::string& label) const {
