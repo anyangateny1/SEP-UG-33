@@ -79,4 +79,4 @@ callgrind.out.*
 vgcore.*
 
 # Clang tools
-.clang-tidy
+# .clang-tidy (removed to allow shared configuration)
