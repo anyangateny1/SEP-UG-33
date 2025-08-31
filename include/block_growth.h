@@ -38,7 +38,7 @@ private:
     char get_mode_of_uncompressed(const Block& blk) const;
 
     Block fit_block(char mode, int width, int height, int depth);
-    Block  grow_block(Block& b, Block best_block, int best_volume);
+    void grow_block(Block& current, Block& best_block);
 
     bool window_is_all(char val,
                        int z0, int z1, int y0, int y1, int x0, int x1) const;

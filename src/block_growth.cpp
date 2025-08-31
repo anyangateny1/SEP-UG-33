@@ -90,7 +90,7 @@ Block BlockGrowth::fit_block(char mode, int width, int height, int depth) {
                     window_is_all_uncompressed(z_off, z_end, y_off, y_end, x_off, x_end)) {
 
                     Block b(x, y, z, width, height, depth, mode, x_off, y_off, z_off);
-                    b = grow_block(b, b, b.volume);
+                    grow_block(b, b);
                     mark_compressed(z_off, z_off+b.depth, y_off, y_off+b.height, x_off, x_off+b.width, true);
                     return b;
                 }
@@ -129,7 +129,9 @@ void BlockGrowth::mark_compressed(int z0, int z1, int y0, int y1, int x0, int x1
                 compressed[z][y][x] = v;
 }
 
-Block BlockGrowth::grow_block(Block& b, Block best_block, int best_volume) {
+void BlockGrowth::grow_block(Block& current, Block& best_block) {
+    Block b = current;
+
     int x = b.x_offset, y = b.y_offset, z = b.z_offset;
     int x_end = x + b.width;
     int y_end = y + b.height;
@@ -144,14 +146,12 @@ Block BlockGrowth::grow_block(Block& b, Block best_block, int best_volume) {
                 if (compressed[zz][yy][x_end]) ok = false;
             }
         if (ok) {
-            Block new_block(b.x, b.y, b.z, b.width + 1, b.height, b.depth, b.tag, x, y, z);
-
-            new_block = grow_block(new_block, best_block, best_volume);
-
-            if (new_block.volume > best_volume) {
-                best_block = new_block;
-                best_volume = new_block.volume;
-            }
+            b.set_width(b.width + 1);
+            current = b;
+            grow_block(current, best_block);
+            if (current.volume > best_block.volume)
+                best_block = current;
+            b.set_width(b.width - 1);
         }
     }
 
@@ -164,14 +164,12 @@ Block BlockGrowth::grow_block(Block& b, Block best_block, int best_volume) {
                 if (compressed[zz][y_end][xx]) ok = false;
             }
         if (ok) {
-            Block new_block(b.x, b.y, b.z, b.width, b.height + 1, b.depth, b.tag, x, y, z);
-
-            new_block = grow_block(new_block, best_block, best_volume);
-
-            if (new_block.volume > best_volume) {
-                best_block = new_block;
-                best_volume = new_block.volume;
-            }
+            b.set_height(b.height + 1);
+            current = b;
+            grow_block(current, best_block);
+            if (current.volume > best_block.volume)
+                best_block = current;
+            b.set_height(b.height - 1);
         }
     }
 
@@ -184,19 +182,15 @@ Block BlockGrowth::grow_block(Block& b, Block best_block, int best_volume) {
                 if (compressed[z_end][yy][xx]) ok = false;
             }
         if (ok) {
-            Block new_block(b.x, b.y, b.z, b.width, b.height, b.depth + 1, b.tag, x, y, z);
-
-            new_block = grow_block(new_block, best_block, best_volume);
-
-            if (new_block.volume > best_volume) {
-                best_block = new_block;
-                best_volume = new_block.volume;
-            }
+            b.set_depth(b.depth + 1);
+            current = b;
+            grow_block(current, best_block);
+            if (current.volume > best_block.volume)
+                best_block = current;
+            b.set_depth(b.depth - 1);
         }
     }
 
-    if (b.volume > best_volume)
+    if (b.volume > best_block.volume)
         best_block = b;
-
-    return best_block;
 }
