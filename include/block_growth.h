@@ -1,20 +1,16 @@
 #ifndef BLOCK_GROWTH_H
 #define BLOCK_GROWTH_H
 
-#include <vector>
 #include <string>
 #include <unordered_map>
 #include "block.h"
 
-// 3D alias: [depth][height][width]
-template<typename T>
-using Vec3 = std::vector<std::vector<std::vector<T>>>;
-
 // BlockGrowth encapsulates the "fit & grow" compression logic for a parent block
-// over a sub-volume (model_slices). The tag_table maps single-char tags to labels.
+// over a sub-volume (flattened model_slices). The tag_table maps single-char tags to labels.
 class BlockGrowth {
 public:
-    BlockGrowth(const Vec3<char>& model_slices,
+    // New constructor: flattened model, dimensions, tag table
+    BlockGrowth(const std::string& model_flat, int width, int height, int depth,
                 const std::unordered_map<char, std::string>& tag_table);
 
     // Run the compression/growth algorithm on the given parent block.
@@ -23,7 +19,8 @@ public:
 
 private:
     // Inputs
-    const Vec3<char>& model; // sub-volume: depth x height x width
+    const std::string& model; // flattened: depth*height*width
+    int width, height, depth;  // dimensions of this sub-volume
     const std::unordered_map<char, std::string>& tag_table;
 
     // State for current run()
@@ -31,7 +28,7 @@ private:
     int parent_x_end = 0, parent_y_end = 0, parent_z_end = 0;
 
     // Tracks which cells in 'model' have been compressed (claimed)
-    Vec3<bool> compressed; // same shape as 'model'
+    std::string compressed; // same size as model, '0' = uncompressed, '1' = compressed
 
     // Helper functions
     bool all_compressed() const;
@@ -44,6 +41,9 @@ private:
                        int z0, int z1, int y0, int y1, int x0, int x1) const;
     bool window_is_all_uncompressed(int z0, int z1, int y0, int y1, int x0, int x1) const;
     void mark_compressed(int z0, int z1, int y0, int y1, int x0, int x1, bool v);
+
+    // Flattened index helper
+    inline int idx(int z, int y, int x) const { return z * height * width + y * width + x; }
 };
 
 #endif // BLOCK_GROWTH_H
