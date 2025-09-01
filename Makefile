@@ -44,6 +44,16 @@ windows: $(WINDOWS_TARGET)
 $(WINDOWS_TARGET): $(SOURCES) | $(BUILD_DIR)
 	$(WINDOWS_CXX) $(WINDOWS_FLAGS) -o $@ $^
 
+# Linux zip target
+linux-zip: $(TARGET)
+	cd $(BUILD_DIR) && zip -j block_model.zip block_model
+
+# Linux package - complete build and packaging process
+linux-package: all linux-zip
+	@echo "Linux executable packaged successfully!"
+	@echo "File: $(BUILD_DIR)/block_model.zip"
+	@ls -la $(BUILD_DIR)/block_model.zip
+
 # Windows zip target (as per original requirements)
 windows-zip: $(WINDOWS_TARGET)
 	cd $(BUILD_DIR) && zip -j block_model.exe.zip block_model.exe
@@ -135,6 +145,8 @@ install-mingw:
 help:
 	@echo "Available targets:"
 	@echo "  all            - Build the main executable (default)"
+	@echo "  linux-zip      - Create Linux executable zip file"
+	@echo "  linux-package  - Complete Linux build and packaging"
 	@echo "  windows        - Cross-compile for Windows"
 	@echo "  windows-zip    - Create Windows executable zip file"
 	@echo "  windows-package- Complete Windows build and packaging (installs MinGW if needed)"
@@ -159,7 +171,7 @@ help:
 	@echo "  2. Submit build/block_model.exe.zip"
 
 # Phony targets
-.PHONY: all windows windows-zip windows-package test test-all test-compression-unit test-integration clean clean-all install-deps install-mingw run-case1 run-case2 run-validate-test run-compression-test validate-case1 validate-case2 help
+.PHONY: all linux-zip linux-package windows windows-zip windows-package test test-all test-compression-unit test-integration clean clean-all install-deps install-mingw run-case1 run-case2 run-validate-test run-compression-test validate-case1 validate-case2 help
 
 # Dependencies (header files)
 $(BUILD_DIR)/main.o: $(INCLUDE_DIR)/block_model.h
