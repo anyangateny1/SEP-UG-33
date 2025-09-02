@@ -11,31 +11,30 @@ BlockGrowth::BlockGrowth(const std::string& model_flat, int w, int h, int d,
     compressed.assign(model.size(), '0');
 }
 
-void BlockGrowth::run(Block parent_block_) {
-    parent_block = parent_block_;
-    parent_x_end = parent_block.x_offset + parent_block.width;
-    parent_y_end = parent_block.y_offset + parent_block.height;
-    parent_z_end = parent_block.z_offset + parent_block.depth;
+void BlockGrowth::run(Block parent) {
+    parent_block = parent;
+    parent_x_end = parent_block.x + parent_block.width;
+    parent_y_end = parent_block.y + parent_block.height;
+    parent_z_end = parent_block.z + parent_block.depth;
 
-    // Initialise compressed mask to false
-    compressed = Vec3<bool>(
-        parent_block.depth,
-        std::vector<std::vector<bool>>(parent_block.height, std::vector<bool>(parent_block.width, false))
-    );
-
-    // Loop until the entire parent block region is compressed
     while (!all_compressed()) {
         char mode = get_mode_of_uncompressed(parent_block);
-        int cube_size = std::min({parent_block.width, parent_block.height, parent_block.depth});
-        Block b = fit_block(mode, cube_size, cube_size, cube_size);
+        if (mode == '\0') break;
 
-        // Lookup label and print (exact same output format as Python)
-        auto it = tag_table.find(b.tag);
-        const string& label = (it == tag_table.end()) ? string(1, b.tag) : it->second;
-        b.print_block(label);
+        Block fitted = fit_block(mode, 1, 1, 1);
+        Block best = fitted;
+        grow_block(fitted, best);
+
+        auto it = tag_table.find(best.tag);
+        if (it != tag_table.end()) {
+            best.print_block(it->second);
+        }
+
+        mark_compressed(best.z, best.z + best.depth,
+                        best.y, best.y + best.height,
+                        best.x, best.x + best.width, true);
     }
 }
-
 bool BlockGrowth::all_compressed() const {
     for (const auto& plane : compressed)
         for (const auto& row : plane)
