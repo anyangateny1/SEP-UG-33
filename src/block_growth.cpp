@@ -5,9 +5,11 @@
 using std::string;
 using std::unordered_map;
 
-BlockGrowth::BlockGrowth(const Vec3<char>& model_slices,
-                         const unordered_map<char, string>& tag_table)
-    : model(model_slices), tag_table(tag_table) {}
+BlockGrowth::BlockGrowth(const std::string& model_flat, int w, int h, int d,
+                         const std::unordered_map<char, std::string>& tags)
+    : model(model_flat), width(w), height(h), depth(d), tag_table(tags) {
+    compressed.assign(model.size(), '0');
+}
 
 void BlockGrowth::run(Block parent_block_) {
     parent_block = parent_block_;
