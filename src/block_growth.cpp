@@ -5,69 +5,68 @@
 using std::string;
 using std::unordered_map;
 
+// Constructor for flattened model version
 BlockGrowth::BlockGrowth(const std::string& model_flat, int w, int h, int d,
                          const std::unordered_map<char, std::string>& tags)
     : model(model_flat), width(w), height(h), depth(d), tag_table(tags) {
+    // Initialize all cells as uncompressed
     compressed.assign(model.size(), '0');
 }
 
+// Run the fit & grow algorithm on the parent block
 void BlockGrowth::run(Block parent) {
     parent_block = parent;
     parent_x_end = parent_block.x + parent_block.width;
     parent_y_end = parent_block.y + parent_block.height;
     parent_z_end = parent_block.z + parent_block.depth;
 
+    // Loop until all parent block cells are compressed
     while (!all_compressed()) {
         char mode = get_mode_of_uncompressed(parent_block);
         if (mode == '\0') break;
 
+        // Start with 1x1x1 cube
         Block fitted = fit_block(mode, 1, 1, 1);
         Block best = fitted;
+
+        // Grow the block in all directions
         grow_block(fitted, best);
 
+        // Print label if exists in tag_table
         auto it = tag_table.find(best.tag);
         if (it != tag_table.end()) {
             best.print_block(it->second);
         }
 
+        // Mark block cells as compressed
         mark_compressed(best.z, best.z + best.depth,
                         best.y, best.y + best.height,
                         best.x, best.x + best.width, true);
     }
 }
+
+// Check if all cells in the parent block are compressed
 bool BlockGrowth::all_compressed() const {
-    for (const auto& plane : compressed)
-        for (const auto& row : plane)
-            for (bool v : row)
-                if (!v) return false;
+    for (char c : compressed)
+        if (c == '0') return false;
     return true;
 }
 
 char BlockGrowth::get_mode_of_uncompressed(const Block& blk) const {
-    // Equivalent to numpy unique+argmax over uncompressed cells in the block slice
-    int z0 = blk.z_offset, z1 = blk.z_offset + blk.depth;
-    int y0 = blk.y_offset, y1 = blk.y_offset + blk.height;
-    int x0 = blk.x_offset, x1 = blk.x_offset + blk.width;
-
-    // Frequency map over char tags
-    int freq[256] = {0}; // tags are char; assuming unsigned char range
-    for (int z = z0; z < z1; ++z)
-        for (int y = y0; y < y1; ++y)
-            for (int x = x0; x < x1; ++x)
-                if (!compressed[z][y][x]) {
-                    unsigned char uc = static_cast<unsigned char>(model[z][y][x]);
-                    ++freq[uc];
+    std::unordered_map<char,int> freq;
+    for (int z = blk.z; z < blk.z + blk.depth; z++) {
+        for (int y = blk.y; y < blk.y + blk.height; y++) {
+            for (int x = blk.x; x < blk.x + blk.width; x++) {
+                int i = idx(z,y,x);
+                if (compressed[i] == '0') {
+                    freq[model[i]]++;
                 }
-
-    char best = 0;
-    int bestCount = -1;
-    for (int i = 0; i < 256; ++i) {
-        if (freq[i] > bestCount) {
-            bestCount = freq[i];
-            best = static_cast<char>(i);
+            }
         }
     }
-    return best;
+    if (freq.empty()) return '\0';
+    return std::max_element(freq.begin(), freq.end(),
+                            [](auto& a, auto& b){ return a.second < b.second; })->first;
 }
 
 Block BlockGrowth::fit_block(char mode, int width, int height, int depth) {
