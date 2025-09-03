@@ -20,6 +20,9 @@ public:
     // Run the compression/growth algorithm on the given parent block.
     // Prints each fitted/grown block using Block::print_block(label).
     void run(Block parent_block);
+    
+    // Thread-safe version that returns output as string instead of printing
+    std::string run_to_string(Block parent_block);
 
 private:
     // Inputs

@@ -2,6 +2,14 @@
 #include <stdexcept>
 #include <algorithm>
 
+// SIMD optimization for window checking using XSimd (header-only, Windows compatible)
+#ifdef __has_include
+#if __has_include(<xsimd/xsimd.hpp>)
+#define USE_XSIMD
+#include <xsimd/xsimd.hpp>
+#endif
+#endif
+
 using std::string;
 using std::unordered_map;
 
@@ -43,21 +51,31 @@ bool BlockGrowth::all_compressed() const {
 }
 
 char BlockGrowth::get_mode_of_uncompressed(const Block& blk) const {
-    // Equivalent to numpy unique+argmax over uncompressed cells in the block slice
+    // Optimized frequency counting for char tags in uncompressed cells
     int z0 = blk.z_offset, z1 = blk.z_offset + blk.depth;
     int y0 = blk.y_offset, y1 = blk.y_offset + blk.height;
     int x0 = blk.x_offset, x1 = blk.x_offset + blk.width;
 
-    // Frequency map over char tags
-    int freq[256] = {0}; // tags are char; assuming unsigned char range
-    for (int z = z0; z < z1; ++z)
-        for (int y = y0; y < y1; ++y)
-            for (int x = x0; x < x1; ++x)
-                if (!compressed[z][y][x]) {
-                    unsigned char uc = static_cast<unsigned char>(model[z][y][x]);
+    // Use aligned memory for frequency map to potentially benefit from cache optimization
+    alignas(64) int freq[256] = {0}; // Align to cache line boundary
+    
+    // Cache-optimized iteration pattern
+    for (int z = z0; z < z1; ++z) {
+        for (int y = y0; y < y1; ++y) {
+            const auto& compressed_row = compressed[z][y];
+            const auto& model_row = model[z][y];
+            
+            // Process row with potential for better vectorization by compiler
+            for (int x = x0; x < x1; ++x) {
+                if (!compressed_row[x]) {
+                    unsigned char uc = static_cast<unsigned char>(model_row[x]);
                     ++freq[uc];
                 }
+            }
+        }
+    }
 
+    // Find mode - could be optimized with SIMD but typically frequency array is small
     char best = 0;
     int bestCount = -1;
     for (int i = 0; i < 256; ++i) {
@@ -107,7 +125,41 @@ Block BlockGrowth::fit_block(char mode, int width, int height, int depth) {
 
 bool BlockGrowth::window_is_all(char val,
                                 int z0, int z1, int y0, int y1, int x0, int x1) const {
-    // Optimized memory access pattern - check in cache-friendly order
+#ifdef USE_XSIMD
+    // SIMD-optimized version using XSimd for better performance on large windows
+    if ((x1 - x0) >= 16) { // Only use SIMD for sufficiently wide rows
+        using batch_type = xsimd::batch<char>;
+        constexpr size_t simd_size = batch_type::size;
+        batch_type val_batch(val);
+        
+        for (int z = z0; z < z1; ++z) {
+            for (int y = y0; y < y1; ++y) {
+                const char* row = &model[z][y][x0];
+                size_t row_width = x1 - x0;
+                
+                // Process SIMD-aligned chunks
+                size_t simd_end = (row_width / simd_size) * simd_size;
+                size_t i = 0;
+                
+                for (; i < simd_end; i += simd_size) {
+                    batch_type data_batch = xsimd::load_unaligned(&row[i]);
+                    auto cmp_result = xsimd::eq(data_batch, val_batch);
+                    if (!xsimd::all(cmp_result)) {
+                        return false;
+                    }
+                }
+                
+                // Handle remaining elements
+                for (; i < row_width; ++i) {
+                    if (row[i] != val) return false;
+                }
+            }
+        }
+        return true;
+    }
+#endif
+    
+    // Fallback: Optimized memory access pattern - check in cache-friendly order
     for (int z = z0; z < z1; ++z) {
         for (int y = y0; y < y1; ++y) {
             // Check consecutive memory locations for better cache performance
@@ -121,12 +173,24 @@ bool BlockGrowth::window_is_all(char val,
 }
 
 bool BlockGrowth::window_is_all_uncompressed(int z0, int z1, int y0, int y1, int x0, int x1) const {
-    // Optimized loop with better cache access pattern
+    // Note: vector<bool> is bit-packed, so SIMD optimization is complex and often not beneficial
+    // Keep optimized loop with better cache access pattern
     for (int z = z0; z < z1; ++z) {
         for (int y = y0; y < y1; ++y) {
-            // Direct access without pointer arithmetic for vector<bool>
-            for (int x = x0; x < x1; ++x) {
-                if (compressed[z][y][x]) return false;
+            // Direct access with optimized loop unrolling hint
+            const auto& row = compressed[z][y];
+            int x = x0;
+            
+            // Unroll loop for better performance (4-way unrolling)
+            for (; x <= x1 - 4; x += 4) {
+                if (row[x] || row[x+1] || row[x+2] || row[x+3]) {
+                    return false;
+                }
+            }
+            
+            // Handle remaining elements
+            for (; x < x1; ++x) {
+                if (row[x]) return false;
             }
         }
     }
@@ -233,4 +297,36 @@ void BlockGrowth::grow_block(Block& current, Block& best_block) {
 
     if (b.volume > best_block.volume)
         best_block = b;
+}
+
+std::string BlockGrowth::run_to_string(Block parent_block_) {
+    parent_block = parent_block_;
+    parent_x_end = parent_block.x_offset + parent_block.width;
+    parent_y_end = parent_block.y_offset + parent_block.height;
+    parent_z_end = parent_block.z_offset + parent_block.depth;
+
+    // Initialise compressed mask to false
+    compressed = Vec3<bool>(
+        parent_block.depth,
+        std::vector<std::vector<bool>>(parent_block.height, std::vector<bool>(parent_block.width, false))
+    );
+
+    std::ostringstream result;
+    
+    // Loop until the entire parent block region is compressed
+    while (!all_compressed()) {
+        char mode = get_mode_of_uncompressed(parent_block);
+        int cube_size = std::min({parent_block.width, parent_block.height, parent_block.depth});
+        Block b = fit_block(mode, cube_size, cube_size, cube_size);
+
+        // Lookup label and format output (same format as print_block)
+        auto it = tag_table.find(b.tag);
+        const std::string& label = (it == tag_table.end()) ? std::string(1, b.tag) : it->second;
+        
+        // Format: x,y,z,width,height,depth,label
+        result << b.x << "," << b.y << "," << b.z << "," 
+               << b.width << "," << b.height << "," << b.depth << "," << label << "\n";
+    }
+    
+    return result.str();
 }
