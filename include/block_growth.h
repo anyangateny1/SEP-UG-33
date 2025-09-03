@@ -32,6 +32,9 @@ public:
     BlockGrowth(const Flat3D<char>& model_slices, const std::unordered_map<char, std::string>& tag_table);
 
     void run(Block parent_block);
+    
+    // Thread-safe version that returns output as string instead of printing
+    std::string run_to_string(Block parent_block);
 
 private:
     const Flat3D<char>& model;
