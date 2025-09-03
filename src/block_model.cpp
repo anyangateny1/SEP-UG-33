@@ -8,6 +8,13 @@
 #include <future>
 #include <sstream>
 #include <map>
+#include <atomic>
+
+#ifdef USE_TBB
+#include <tbb/parallel_for.h>
+#include <tbb/blocked_range2d.h>
+#include <tbb/concurrent_vector.h>
+#endif
 
 using std::string;
 using std::unordered_map;
@@ -125,9 +132,57 @@ Flat3D<char> BlockModel::slice_model(const Flat3D<char>& src,
 }
 
 void BlockModel::compress_slices(int top_slice, int n_slices) {
-    // For now, let's disable threading to fix the segfault and focus on other optimizations
-    // This maintains the original single-threaded behavior while keeping the optimization framework
+#ifdef USE_TBB
+    // Intel TBB implementation for maximum performance on multi-core systems
+    int x_blocks = (x_count + parent_x - 1) / parent_x;
+    int y_blocks = (y_count + parent_y - 1) / parent_y;
     
+    // Collect all parent blocks with their processing order
+    std::vector<std::tuple<int, int, int, int, int, int, char>> parent_blocks;
+    
+    for (int yi = 0; yi < y_blocks; ++yi) {
+        for (int xi = 0; xi < x_blocks; ++xi) {
+            int y = yi * parent_y;
+            int x = xi * parent_x;
+            int z = top_slice;
+            
+            int width  = std::min(parent_x, x_count - x);
+            int height = std::min(parent_y, y_count - y);
+            int depth  = n_slices;
+             char tag = model.at(z % parent_z, y, x);
+            
+            parent_blocks.emplace_back(x, y, z, width, height, depth, tag);
+        }
+    }
+    
+    // Use concurrent_vector to store results
+    tbb::concurrent_vector<std::string> results(parent_blocks.size());
+    
+    // Process blocks in parallel
+    tbb::parallel_for(
+        tbb::blocked_range<size_t>(0, parent_blocks.size()),
+        [&](const tbb::blocked_range<size_t>& range) {
+            for (size_t i = range.begin(); i != range.end(); ++i) {
+                auto [x, y, z, width, height, depth, tag] = parent_blocks[i];
+                
+                 Block parentBlock(x, y, z, width, height, depth, tag);
+                 Flat3D<char> model_slices = slice_model(model, depth, y, parentBlock.y_end, x, parentBlock.x_end);
+                
+                // Use thread-safe string-based output
+                BlockGrowth growth(model_slices, tag_table);
+                results[i] = growth.run_to_string(parentBlock);
+            }
+        }
+    );
+    
+    // Output results in original order
+    for (const auto& result : results) {
+        if (!result.empty()) {
+            std::cout << result;
+        }
+    }
+#else
+    // Optimized single-threaded approach with SIMD and algorithm improvements
     for (int y = 0; y < y_count; y += parent_y) {
         for (int x = 0; x < x_count; x += parent_x) {
             int z = top_slice;
@@ -143,6 +198,7 @@ void BlockModel::compress_slices(int top_slice, int n_slices) {
             growth.run(parentBlock);
         }
     }
+#endif
 }
 
 void BlockModel::process_parent_block(int x, int y, int z, int width, int height, int depth, char tag, int n_slices) {
