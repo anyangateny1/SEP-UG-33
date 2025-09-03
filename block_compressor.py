@@ -8,29 +8,58 @@ class RecursiveCompressor:
     def compress(self, x, y, z, w, h, d, region):
         """
         Recursively compress a block region.
+        Finds largest uniform block before subdividing.
         Prints output lines directly.
         """
+        # Empty / padding check
         first = region[0, 0, 0]
         if first not in self.tag_table:
-            return   # ignore padding
-        
+            return
+
         # Case 1: uniform block
-        if np.all(region == first):
-            label = self.tag_table[first]
+        unique_vals = np.unique(region)
+        if len(unique_vals) == 1:
+            label = self.tag_table[unique_vals[0]]
             print(f"{x},{y},{z},{w},{h},{d},{label}")
             return
 
-        # Case 2: subdivide further if possible
+        # Case 2: try to find largest uniform spans along each axis
+        # Check if any slices along Z are uniform
+        if d > 1:
+            for split in range(1, d):  # all possible z-splits
+                if np.all(region[:split] == region[0, 0, 0]) and np.unique(region[:split]).size == 1:
+                    # if top part uniform, emit it
+                    label = self.tag_table[region[0, 0, 0]]
+                    print(f"{x},{y},{z},{w},{h},{split},{label}")
+                    # recursively call compress() on the remainder half
+                    self.compress(x, y, z + split, w, h, d - split, region[split:])
+                    return
+
+        if h > 1:
+            for split in range(1, h):  # all possible y-splits
+                if np.all(region[:, :split] == region[0, 0, 0]) and np.unique(region[:, :split]).size == 1:
+                    label = self.tag_table[region[0, 0, 0]]
+                    print(f"{x},{y},{z},{w},{split},{d},{label}")
+                    self.compress(x, y + split, z, w, h - split, d, region[:, split:])
+                    return
+
+        if w > 1:
+            for split in range(1, w):  # all possible x-splits
+                if np.all(region[:, :, :split] == region[0, 0, 0]) and np.unique(region[:, :, :split]).size == 1:
+                    label = self.tag_table[region[0, 0, 0]]
+                    print(f"{x},{y},{z},{split},{h},{d},{label}")
+                    self.compress(x + split, y, z, w - split, h, d, region[:, :, split:])
+                    return
+
+        # Case 3: fallback - standard subdivision
         if w > 1 or h > 1 or d > 1:
             w2 = max(1, w // 2)
             h2 = max(1, h // 2)
             d2 = max(1, d // 2)
 
-            #If d,h,w > 1, split along that dimension. First child starts 0,0. Second at offset
             for dz, z_off in enumerate([0, d2] if d > 1 else [0]):
                 for dy, y_off in enumerate([0, h2] if h > 1 else [0]):
                     for dx, x_off in enumerate([0, w2] if w > 1 else [0]):
-                        #Subdivide child blocks, second half gets remainder.
                         sub_w = w2 if dx == 0 else w - w2
                         sub_h = h2 if dy == 0 else h - h2
                         sub_d = d2 if dz == 0 else d - d2
@@ -47,9 +76,9 @@ class RecursiveCompressor:
                             sub_region
                         )
         else:
-            # Fallback: 1x1x1 block
+            # Case 4: single voxel
             label = self.tag_table[region[0, 0, 0]]
-            print(f"{x},{y},{z},1,1,1,{label}")
+
 
 
 class BlockModel:
