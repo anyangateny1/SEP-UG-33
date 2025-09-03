@@ -1,10 +1,10 @@
 #ifndef BLOCK_GROWTH_H
 #define BLOCK_GROWTH_H
 
-#include <vector>
+#include "block.h"
 #include <string>
 #include <unordered_map>
-#include "block.h"
+#include <vector>
 
 // Flattened 3D container: [depth][height][width]
 template<typename T>
