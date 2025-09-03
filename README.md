@@ -98,6 +98,43 @@ cmake --build build/release --target test-all
 cmake --build build/release --target run-case1
 cmake --build build/release --target run-case2
 cmake --build build/release --target format  # Code formatting
+```
+
+## Code Formatting
+
+This project uses `clang-format` to maintain consistent code style. The formatting is automatically applied:
+
+### Automatic Formatting
+
+- **Pre-commit Hook**: Code is automatically formatted before each commit
+- **CI Pipeline**: Formatting is checked in the CI pipeline to ensure consistency
+
+### Manual Formatting
+
+```bash
+# Format all C++ files in the project
+./scripts/format-code.sh
+
+# Check formatting without making changes
+find src include tests -name "*.cpp" -o -name "*.h" | xargs clang-format --dry-run --Werror
+```
+
+### Installation
+
+If you don't have `clang-format` installed:
+
+```bash
+# macOS
+brew install clang-format
+
+# Ubuntu/Debian
+sudo apt install clang-format
+
+# Windows
+choco install llvm
+```
+
+The project includes a `.clang-format` configuration file that defines the coding style standards.
 cmake --build build/release --target lint    # Static analysis
 ```
 

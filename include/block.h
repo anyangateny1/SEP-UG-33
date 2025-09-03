@@ -9,37 +9,38 @@
 // used by the BlockGrowth algorithm (i.e., model_slices).
 class Block {
 public:
-    // Absolute position in the global model grid
-    int x, y, z;
+  // Absolute position in the global model grid
+  int x, y, z;
 
-    // Offsets within the parent/model_slices buffer (local indexing)
-    int x_offset, y_offset, z_offset;
+  // Offsets within the parent/model_slices buffer (local indexing)
+  int x_offset, y_offset, z_offset;
 
-    // Size (dimensions) of the block
-    int width, height, depth;
+  // Size (dimensions) of the block
+  int width, height, depth;
 
-    // Absolute end coordinates (exclusive)
-    int x_end, y_end, z_end;
+  // Volume of the block
+  int volume;
 
-    // Single-character tag (equivalent to Python dtype 'U1' element)
-    char tag;
+  // Absolute end coordinates (exclusive)
+  int x_end, y_end, z_end;
 
-    // Construct a block at (x,y,z) of size (w,h,d), with tag.
-    // Optional local offsets default to 0.
-    Block(int x, int y, int z,
-          int w, int h, int d,
-          char tag,
-          int x_off = 0, int y_off = 0, int z_off = 0);
+  // Single-character tag (equivalent to Python dtype 'U1' element)
+  char tag;
 
-    // Adjust dimensions and keep end coordinates consistent
-    void set_width(int w);
-    void set_height(int h);
-    void set_depth(int d);
+  // Construct a block at (x,y,z) of size (w,h,d), with tag.
+  // Optional local offsets default to 0.
+  Block(int x, int y, int z, int w, int h, int d, char tag, int x_off = 0,
+        int y_off = 0, int z_off = 0);
 
-    // Print in the exact Python format:
-    //   x,y,z,width,height,depth,label
-    // (label is looked up by BlockGrowth and passed in here)
-    void print_block(const std::string& label) const;
+  // Adjust dimensions and keep end coordinates consistent
+  void set_width(int w);
+  void set_height(int h);
+  void set_depth(int d);
+
+  // Print in the exact Python format:
+  //   x,y,z,width,height,depth,label
+  // (label is looked up by BlockGrowth and passed in here)
+  void print_block(const std::string& label) const;
 };
 
 #endif // BLOCK_H
