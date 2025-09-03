@@ -13,6 +13,9 @@ endif()
 # Try to find TBB
 find_package(TBB QUIET)
 
+# Try to find DirectXMath
+find_package(directxmath QUIET)
+
 # Source files
 set(SOURCES
     src/main.cpp
@@ -57,6 +60,15 @@ else()
     message(STATUS "TBB not found - using single-threaded fallback")
 endif()
 
+# DirectXMath integration
+if(directxmath_FOUND)
+    target_link_libraries(block_model PRIVATE Microsoft::DirectXMath)
+    target_compile_definitions(block_model PRIVATE USE_DIRECTXMATH)
+    message(STATUS "DirectXMath found - enabling SIMD optimizations")
+else()
+    message(STATUS "DirectXMath not found - using standard optimizations")
+endif()
+
 # Windows-specific settings
 if(WIN32)
     # Static runtime for standalone executable
@@ -86,6 +98,7 @@ message(STATUS "========================================")
 message(STATUS "C++ Standard: ${CMAKE_CXX_STANDARD}")
 message(STATUS "Compiler: ${CMAKE_CXX_COMPILER_ID}")
 message(STATUS "TBB Support: ${TBB_FOUND}")
+message(STATUS "DirectXMath SIMD: ${directxmath_FOUND}")
 message(STATUS "Build Type: ${CMAKE_BUILD_TYPE}")
 message(STATUS "Target Platform: ${CMAKE_SYSTEM_NAME}")
 message(STATUS "========================================")

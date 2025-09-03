@@ -4,6 +4,7 @@
 #include <vector>
 #include <string>
 #include <unordered_map>
+#include <set>
 #include "block.h"
 
 // Flattened 3D container: [depth][height][width]
@@ -50,6 +51,12 @@ private:
 
     bool all_compressed() const;
     char get_mode_of_uncompressed(const Block& blk) const;
+
+    // AGGRESSIVE COMPRESSION ALGORITHM FUNCTIONS
+    Block find_best_rectangular_block(const Block& parent_block);
+    Block find_largest_contiguous_block(const Block& parent_block);
+    Block grow_largest_block_from_position(int start_x, int start_y, int start_z, char tag);
+    std::set<char> get_available_tags_in_uncompressed(const Block& blk) const;
 
     Block fit_block(char mode, int width, int height, int depth);
     void grow_block(Block& current, Block& best_block);
