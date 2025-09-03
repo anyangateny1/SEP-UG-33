@@ -12,10 +12,6 @@ BlockGrowth::BlockGrowth(const string& model_flat, int w, int h, int d,
     compressed.assign(model.size(), '0'); // '0' = uncompressed
 }
 
-// Flattened index helper
-inline int BlockGrowth::idx(int z, int y, int x) const {
-    return z * (height * width) + y * width + x;
-}
 
 // Run the compression/growth algorithm on the given parent block
 void BlockGrowth::run(Block parent) {

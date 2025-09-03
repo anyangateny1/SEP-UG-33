@@ -43,21 +43,23 @@ void BlockModel::read_tag_table() {
 }
 
 void BlockModel::read_model() {
-    // Allocate ring buffer depth = parent_z
-    model.assign(parent_z,
-        vector<vector<char>>(y_count, vector<char>(x_count, '\0')));
+    // Allocate flattened buffer: [depth][height][width]
+    model.assign(parent_z * y_count * x_count, '\0');
 
     int top_slice = 0;
     int n_slices = parent_z;
 
-    string line;
+    std::string line;
     for (int z = 0; z < z_count; ++z) {
         for (int y = 0; y < y_count; ++y) {
             getline_strict(line);
             if ((int)line.size() < x_count)
                 throw std::runtime_error("Model row shorter than x_count.");
+
             for (int x = 0; x < x_count; ++x) {
-                model[z % parent_z][y][x] = line[x];
+                // Compute flattened index into [z % parent_z][y][x]
+                int idx = (z % parent_z) * (y_count * x_count) + (y * x_count) + x;
+                model[idx] = line[x];
             }
         }
 
@@ -67,11 +69,11 @@ void BlockModel::read_model() {
             top_slice = z + 1;
         }
 
-        // Skip blank separator between slices (Python called input() unconditionally)
+        // Skip blank separator between slices
         if (z < z_count - 1) {
-            string sep;
+            std::string sep;
             getline_strict(sep);
-            // We don't enforce emptiness; just consume one line to replicate Python behavior.
+            // No strict check: just consume the line to match Python behavior
         }
     }
 
@@ -109,13 +111,23 @@ vector<int> BlockModel::split_csv_ints(const string& line) {
     return vals;
 }
 
-Vec3<char> BlockModel::slice_model(const Vec3<char>& src,
-                                   int depth, int y0, int y1, int x0, int x1) {
-    Vec3<char> out(depth, vector<vector<char>>(y1 - y0, vector<char>(x1 - x0, '\0')));
-    for (int z = 0; z < depth; ++z)
-        for (int y = y0; y < y1; ++y)
-            for (int x = x0; x < x1; ++x)
-                out[z][y - y0][x - x0] = src[z][y][x];
+// Extract a sub-volume from a flattened source string
+std::string BlockModel::slice_model(const std::string& src,
+                                    int src_width, int src_height, int src_depth,
+                                    int z0, int depth, int y0, int y1, int x0, int x1) {
+    int slice_height = y1 - y0;
+    int slice_width  = x1 - x0;
+    std::string out(depth * slice_height * slice_width, '\0');
+
+    for (int z = 0; z < depth; ++z) {
+        for (int y = y0; y < y1; ++y) {
+            for (int x = x0; x < x1; ++x) {
+                int src_idx = ((z0 + z) % src_depth) * (src_height * src_width) + y * src_width + x;
+                int out_idx = z * (slice_height * slice_width) + (y - y0) * slice_width + (x - x0);
+                out[out_idx] = src[src_idx];
+            }
+        }
+    }
     return out;
 }
 
@@ -126,13 +138,15 @@ void BlockModel::compress_slices(int top_slice, int n_slices) {
             int width  = std::min(parent_x, x_count - x);
             int height = std::min(parent_y, y_count - y);
             int depth  = n_slices;
-            char tag = model[z % parent_z][y][x];
+            char tag = model[z % parent_z * y_count * x_count + y * x_count + x];
 
             Block parentBlock(x, y, z, width, height, depth, tag);
-            // model_slices = model[:depth, y:parentBlock.y_end, x:parentBlock.x_end]
-            Vec3<char> model_slices = slice_model(model, depth, y, parentBlock.y_end, x, parentBlock.x_end);
 
-            BlockGrowth growth(model_slices, tag_table);
+            // Flattened sub-volume
+            std::string model_slices = slice_model(model, x_count, y_count, parent_z,
+                                                   z, depth, y, y + height, x, x + width);
+
+            BlockGrowth growth(model_slices, width, height, depth, tag_table);
             growth.run(parentBlock);
         }
     }
