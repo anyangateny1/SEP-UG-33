@@ -2,9 +2,9 @@
 
 # Compiler and flags
 CXX = g++
-CXXFLAGS = -std=c++17 -Wall -Wextra -O2 -Iinclude
+CXXFLAGS = -std=c++17 -Wall -Wextra -O3 -march=native -flto -funroll-loops -ffast-math -Iinclude -pthread
 WINDOWS_CXX = x86_64-w64-mingw32-g++
-WINDOWS_FLAGS = -std=c++17 -O2 -static -static-libstdc++ -static-libgcc -Iinclude
+WINDOWS_FLAGS = -std=c++17 -O3 -flto -funroll-loops -ffast-math -static -static-libstdc++ -static-libgcc -Iinclude -pthread
 
 # Directories
 SRC_DIR = src
@@ -32,7 +32,7 @@ all: $(TARGET)
 
 # Main executable
 $(TARGET): $(OBJECTS) | $(BUILD_DIR)
-	$(CXX) $(CXXFLAGS) -o $@ $^
+	$(CXX) $(CXXFLAGS) -o $@ $^ -pthread
 
 # Object files
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp | $(BUILD_DIR)

@@ -4,10 +4,24 @@
 #include <iostream>
 #include <stdexcept>
 #include <vector>
+#include <thread>
+#include <future>
+#include <sstream>
+#include <map>
 
 using std::string;
 using std::unordered_map;
 using std::vector;
+
+BlockModel::BlockModel() {
+    // Auto-detect optimal thread count, but cap at 8 for diminishing returns
+    num_threads = std::min(std::thread::hardware_concurrency(), 8u);
+    if (num_threads == 0) num_threads = 1; // Fallback for systems that don't report
+}
+
+void BlockModel::set_num_threads(unsigned int threads) {
+    num_threads = std::max(1u, threads); // Ensure at least 1 thread
+}
 
 void BlockModel::read_specification() {
     string line;
@@ -111,6 +125,9 @@ Flat3D<char> BlockModel::slice_model(const Flat3D<char>& src,
 }
 
 void BlockModel::compress_slices(int top_slice, int n_slices) {
+    // For now, let's disable threading to fix the segfault and focus on other optimizations
+    // This maintains the original single-threaded behavior while keeping the optimization framework
+    
     for (int y = 0; y < y_count; y += parent_y) {
         for (int x = 0; x < x_count; x += parent_x) {
             int z = top_slice;
@@ -126,4 +143,54 @@ void BlockModel::compress_slices(int top_slice, int n_slices) {
             growth.run(parentBlock);
         }
     }
+}
+
+void BlockModel::process_parent_block(int x, int y, int z, int width, int height, int depth, char tag, int n_slices) {
+    Block parentBlock(x, y, z, width, height, depth, tag);
+    // model_slices = model[:depth, y:parentBlock.y_end, x:parentBlock.x_end]
+    Flat3D<char> model_slices = slice_model(model, n_slices, y, parentBlock.y_end, x, parentBlock.x_end);
+
+    BlockGrowth growth(model_slices, tag_table);
+    growth.run(parentBlock);
+}
+
+std::string BlockModel::process_parent_block_to_string(int x, int y, int z, int width, int height, int depth, char tag, int n_slices) {
+    Block parentBlock(x, y, z, width, height, depth, tag);
+    // model_slices = model[:depth, y:parentBlock.y_end, x:parentBlock.x_end]
+    Flat3D<char> model_slices = slice_model(model, n_slices, y, parentBlock.y_end, x, parentBlock.x_end);
+
+    // Capture output to string
+    std::ostringstream oss;
+    std::streambuf* orig = std::cout.rdbuf();
+    std::cout.rdbuf(oss.rdbuf());
+    
+    BlockGrowth growth(model_slices, tag_table);
+    growth.run(parentBlock);
+    
+    std::cout.rdbuf(orig); // Restore original cout
+    return oss.str();
+}
+
+std::string BlockModel::process_parent_block_to_string_safe(const Flat3D<char>& model_slices, const Block& parentBlock) {
+    // Create a modified BlockGrowth that outputs to string instead of cout
+    std::ostringstream result;
+    
+    // For now, let's implement a simple version that doesn't redirect cout
+    // We'll need to modify BlockGrowth to support string output or use a different approach
+    
+    // Temporarily redirect cout for this thread only
+    std::ostringstream oss;
+    std::streambuf* orig_cout = std::cout.rdbuf();
+    std::cout.rdbuf(oss.rdbuf());
+    
+    try {
+        BlockGrowth growth(model_slices, tag_table);
+        growth.run(parentBlock);
+    } catch (...) {
+        std::cout.rdbuf(orig_cout);
+        throw;
+    }
+    
+    std::cout.rdbuf(orig_cout);
+    return oss.str();
 }

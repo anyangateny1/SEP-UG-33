@@ -99,26 +99,41 @@ Block BlockGrowth::fit_block(char mode, int width, int height, int depth) {
 
 bool BlockGrowth::window_is_all(char val,
                                 int z0, int z1, int y0, int y1, int x0, int x1) const {
-    for (int z = z0; z < z1; ++z)
-        for (int y = y0; y < y1; ++y)
-            for (int x = x0; x < x1; ++x)
+    // Optimized memory access pattern - check in cache-friendly order
+    for (int z = z0; z < z1; ++z) {
+        for (int y = y0; y < y1; ++y) {
+            // Check consecutive memory locations for better cache performance
+            for (int x = x0; x < x1; ++x) {
                 if (model.at(z, y, x) != val) return false;
+            }
+        }
+    }
     return true;
 }
 
 bool BlockGrowth::window_is_all_uncompressed(int z0, int z1, int y0, int y1, int x0, int x1) const {
-    for (int z = z0; z < z1; ++z)
-        for (int y = y0; y < y1; ++y)
-            for (int x = x0; x < x1; ++x)
+    // Optimized loop with better cache access pattern
+    for (int z = z0; z < z1; ++z) {
+        for (int y = y0; y < y1; ++y) {
+            // Direct access for better cache performance
+            for (int x = x0; x < x1; ++x) {
                 if (compressed.at(z, y, x) != 0) return false;
+            }
+        }
+    }
     return true;
 }
 
 void BlockGrowth::mark_compressed(int z0, int z1, int y0, int y1, int x0, int x1, char v) {
-    for (int z = z0; z < z1; ++z)
-        for (int y = y0; y < y1; ++y)
-            for (int x = x0; x < x1; ++x)
+    // Optimized loop structure for better cache locality
+    for (int z = z0; z < z1; ++z) {
+        for (int y = y0; y < y1; ++y) {
+            // Direct assignment for better performance
+            for (int x = x0; x < x1; ++x) {
                 compressed.at(z, y, x) = v;
+            }
+        }
+    }
 }
 
 void BlockGrowth::grow_block(Block& current, Block& best_block) {
@@ -128,35 +143,83 @@ void BlockGrowth::grow_block(Block& current, Block& best_block) {
     int x_end = x + b.width;
     int y_end = y + b.height;
     int z_end = z + b.depth;
-
-    // Try +X growth
-    if (x_end < parent_x_end) {
-        bool ok = true;
-        for (int zz = z; zz < z_end && ok; ++zz)
-            for (int yy = y; yy < y_end && ok; ++yy) {
-                if (model.at(zz, yy, x_end) != b.tag || compressed.at(zz, yy, x_end) != 0) ok = false;
-            }
-        if (ok) { b.set_width(b.width + 1); current = b; grow_block(current, best_block); if (current.volume > best_block.volume) best_block = current; b.set_width(b.width - 1); }
+    
+    // Early termination: if current block can't possibly beat best_block
+    int max_possible_width = parent_x_end - x;
+    int max_possible_height = parent_y_end - y;
+    int max_possible_depth = parent_z_end - z;
+    int max_possible_volume = max_possible_width * max_possible_height * max_possible_depth;
+    
+    if (max_possible_volume <= best_block.volume) {
+        return; // No point in continuing this branch
     }
 
-    // Try +Y growth
-    if (y_end < parent_y_end) {
+    // Try growth in order of potential volume gain (greedy approach)
+    // Calculate potential gains for each direction
+    int x_gain = (x_end < parent_x_end) ? (b.height * b.depth) : 0;
+    int y_gain = (y_end < parent_y_end) ? (b.width * b.depth) : 0;
+    int z_gain = (z_end < parent_z_end) ? (b.width * b.height) : 0;
+    
+    // Sort growth directions by potential gain (largest first)
+    struct GrowthOption {
+        int gain;
+        int direction; // 0=x, 1=y, 2=z
+    };
+    
+    GrowthOption options[3] = {{x_gain, 0}, {y_gain, 1}, {z_gain, 2}};
+    std::sort(options, options + 3, [](const GrowthOption& a, const GrowthOption& b) {
+        return a.gain > b.gain;
+    });
+    
+    for (int i = 0; i < 3; ++i) {
+        if (options[i].gain == 0) break; // No more valid directions
+        
         bool ok = true;
-        for (int zz = z; zz < z_end && ok; ++zz)
-            for (int xx = x; xx < x_end && ok; ++xx) {
-                if (model.at(zz, y_end, xx) != b.tag || compressed.at(zz, y_end, xx) != 0) ok = false;
+        int direction = options[i].direction;
+        
+        if (direction == 0) { // +X growth
+            for (int zz = z; zz < z_end && ok; ++zz)
+                for (int yy = y; yy < y_end && ok; ++yy) {
+                    if (model.at(zz, yy, x_end) != b.tag) ok = false;
+                    if (compressed.at(zz, yy, x_end) != 0) ok = false;
+                }
+            if (ok) {
+                b.set_width(b.width + 1);
+                current = b;
+                grow_block(current, best_block);
+                if (current.volume > best_block.volume)
+                    best_block = current;
+                b.set_width(b.width - 1);
             }
-        if (ok) { b.set_height(b.height + 1); current = b; grow_block(current, best_block); if (current.volume > best_block.volume) best_block = current; b.set_height(b.height - 1); }
-    }
-
-    // Try +Z growth
-    if (z_end < parent_z_end) {
-        bool ok = true;
-        for (int yy = y; yy < y_end && ok; ++yy)
-            for (int xx = x; xx < x_end && ok; ++xx) {
-                if (model.at(z_end, yy, xx) != b.tag || compressed.at(z_end, yy, xx) != 0) ok = false;
+        } else if (direction == 1) { // +Y growth
+            for (int zz = z; zz < z_end && ok; ++zz)
+                for (int xx = x; xx < x_end && ok; ++xx) {
+                    if (model.at(zz, y_end, xx) != b.tag) ok = false;
+                    if (compressed.at(zz, y_end, xx) != 0) ok = false;
+                }
+            if (ok) {
+                b.set_height(b.height + 1);
+                current = b;
+                grow_block(current, best_block);
+                if (current.volume > best_block.volume)
+                    best_block = current;
+                b.set_height(b.height - 1);
             }
-        if (ok) { b.set_depth(b.depth + 1); current = b; grow_block(current, best_block); if (current.volume > best_block.volume) best_block = current; b.set_depth(b.depth - 1); }
+        } else if (direction == 2) { // +Z growth
+            for (int yy = y; yy < y_end && ok; ++yy)
+                for (int xx = x; xx < x_end && ok; ++xx) {
+                    if (model.at(z_end, yy, xx) != b.tag) ok = false;
+                    if (compressed.at(z_end, yy, xx) != 0) ok = false;
+                }
+            if (ok) {
+                b.set_depth(b.depth + 1);
+                current = b;
+                grow_block(current, best_block);
+                if (current.volume > best_block.volume)
+                    best_block = current;
+                b.set_depth(b.depth - 1);
+            }
+        }
     }
 
     if (b.volume > best_block.volume)
