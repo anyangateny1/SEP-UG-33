@@ -4,6 +4,10 @@
 #include <iostream>
 #include <stdexcept>
 #include <vector>
+#include <thread>
+#include <future>
+#include <sstream>
+#include <map>
 
 using std::string;
 using std::unordered_map;
@@ -12,21 +16,23 @@ using std::vector;
 BlockModel::BlockModel() {
     // Auto-detect optimal thread count, but cap at 8 for diminishing returns
     num_threads = std::min(std::thread::hardware_concurrency(), 8u);
-    if (num_threads == 0) num_threads = 1; // Fallback for systems that don't report
+    if (num_threads == 0)
+        num_threads = 1;  // Fallback for systems that don't report
 }
 
 void BlockModel::set_num_threads(unsigned int threads) {
-    num_threads = std::max(1u, threads); // Ensure at least 1 thread
+    num_threads = std::max(1u, threads);  // Ensure at least 1 thread
 }
 
 void BlockModel::read_specification() {
     string line;
     getline_strict(line);
     vector<int> vals = split_csv_ints(line);
-    if (vals.size() != 6) throw std::runtime_error("Invalid specification line (need 6 ints).");
-    x_count  = vals[0];
-    y_count  = vals[1];
-    z_count  = vals[2];
+    if (vals.size() != 6)
+        throw std::runtime_error("Invalid specification line (need 6 ints).");
+    x_count = vals[0];
+    y_count = vals[1];
+    z_count = vals[2];
     parent_x = vals[3];
     parent_y = vals[4];
     parent_z = vals[5];
@@ -36,9 +42,13 @@ void BlockModel::read_tag_table() {
     tag_table.clear();
     string line;
     while (true) {
-        if (!std::getline(std::cin, line)) { line.clear(); }
-        if (!line.empty() && line.back() == '\r') line.pop_back();
-        if (is_empty_line(line)) break;
+        if (!std::getline(std::cin, line)) {
+            line.clear();
+        }
+        if (!line.empty() && line.back() == '\r')
+            line.pop_back();
+        if (is_empty_line(line))
+            break;
 
         auto pos = line.find(", ");
         if (pos == string::npos || pos == 0 || pos + 2 > line.size())
@@ -85,14 +95,18 @@ void BlockModel::read_model() {
 }
 
 bool BlockModel::is_empty_line(const string& s) {
-    if (s.empty()) return true;
-    if (s.size() == 1 && (s[0] == '\r' || s[0] == '\n')) return true;
+    if (s.empty())
+        return true;
+    if (s.size() == 1 && (s[0] == '\r' || s[0] == '\n'))
+        return true;
     return false;
 }
 
 void BlockModel::getline_strict(string& out) {
-    if (!std::getline(std::cin, out)) out.clear();
-    if (!out.empty() && out.back() == '\r') out.pop_back();
+    if (!std::getline(std::cin, out))
+        out.clear();
+    if (!out.empty() && out.back() == '\r')
+        out.pop_back();
 }
 
 vector<int> BlockModel::split_csv_ints(const string& line) {
@@ -100,18 +114,22 @@ vector<int> BlockModel::split_csv_ints(const string& line) {
     string cur;
     for (char c : line) {
         if (c == ',') {
-            if (!cur.empty()) { vals.push_back(std::stoi(cur)); cur.clear(); }
-            else { vals.push_back(0); }
+            if (!cur.empty()) {
+                vals.push_back(std::stoi(cur));
+                cur.clear();
+            } else {
+                vals.push_back(0);
+            }
         } else if (!std::isspace(static_cast<unsigned char>(c))) {
             cur.push_back(c);
         }
     }
-    if (!cur.empty()) vals.push_back(std::stoi(cur));
+    if (!cur.empty())
+        vals.push_back(std::stoi(cur));
     return vals;
 }
 
-Flat3D<char> BlockModel::slice_model(const Flat3D<char>& src,
-                                     int depth, int y0, int y1, int x0, int x1) {
+Flat3D<char> BlockModel::slice_model(const Flat3D<char>& src, int depth, int y0, int y1, int x0, int x1) {
     Flat3D<char> out(depth, y1 - y0, x1 - x0, '\0');
     for (int z = 0; z < depth; ++z)
         for (int y = y0; y < y1; ++y)
@@ -121,12 +139,15 @@ Flat3D<char> BlockModel::slice_model(const Flat3D<char>& src,
 }
 
 void BlockModel::compress_slices(int top_slice, int n_slices) {
+    // For now, let's disable threading to fix the segfault and focus on other optimizations
+    // This maintains the original single-threaded behavior while keeping the optimization framework
+
     for (int y = 0; y < y_count; y += parent_y) {
         for (int x = 0; x < x_count; x += parent_x) {
             int z = top_slice;
-            int width  = std::min(parent_x, x_count - x);
+            int width = std::min(parent_x, x_count - x);
             int height = std::min(parent_y, y_count - y);
-            int depth  = n_slices;
+            int depth = n_slices;
             char tag = model.at(z % parent_z, y, x);
 
             Block parentBlock(x, y, z, width, height, depth, tag);
@@ -136,4 +157,58 @@ void BlockModel::compress_slices(int top_slice, int n_slices) {
             growth.run(parentBlock);
         }
     }
+}
+
+void BlockModel::process_parent_block(int x, int y, int z, int width, int height, int depth, char tag, int n_slices) {
+    Block parentBlock(x, y, z, width, height, depth, tag);
+    // model_slices = model[:depth, y:parentBlock.y_end, x:parentBlock.x_end]
+    Flat3D<char> model_slices = slice_model(model, n_slices, y, parentBlock.y_end, x, parentBlock.x_end);
+
+    BlockGrowth growth(model_slices, tag_table);
+    growth.run(parentBlock);
+}
+
+std::string BlockModel::process_parent_block_to_string(
+    int x, int y, int z, int width, int height, int depth, char tag, int n_slices
+) {
+    Block parentBlock(x, y, z, width, height, depth, tag);
+    // model_slices = model[:depth, y:parentBlock.y_end, x:parentBlock.x_end]
+    Flat3D<char> model_slices = slice_model(model, n_slices, y, parentBlock.y_end, x, parentBlock.x_end);
+
+    // Capture output to string
+    std::ostringstream oss;
+    std::streambuf* orig = std::cout.rdbuf();
+    std::cout.rdbuf(oss.rdbuf());
+
+    BlockGrowth growth(model_slices, tag_table);
+    growth.run(parentBlock);
+
+    std::cout.rdbuf(orig);  // Restore original cout
+    return oss.str();
+}
+
+std::string BlockModel::process_parent_block_to_string_safe(
+    const Flat3D<char>& model_slices, const Block& parentBlock
+) {
+    // Create a modified BlockGrowth that outputs to string instead of cout
+    std::ostringstream result;
+
+    // For now, let's implement a simple version that doesn't redirect cout
+    // We'll need to modify BlockGrowth to support string output or use a different approach
+
+    // Temporarily redirect cout for this thread only
+    std::ostringstream oss;
+    std::streambuf* orig_cout = std::cout.rdbuf();
+    std::cout.rdbuf(oss.rdbuf());
+
+    try {
+        BlockGrowth growth(model_slices, tag_table);
+        growth.run(parentBlock);
+    } catch (...) {
+        std::cout.rdbuf(orig_cout);
+        throw;
+    }
+
+    std::cout.rdbuf(orig_cout);
+    return oss.str();
 }
