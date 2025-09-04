@@ -12,8 +12,8 @@
 
 #ifdef USE_TBB
 #include <tbb/parallel_for.h>
-#include <tbb/blocked_range2d.h>
-#include <tbb/concurrent_vector.h>
+#include <tbb/blocked_range.h>
+#include <tbb/partitioner.h>
 #endif
 
 using std::string;
@@ -169,23 +169,29 @@ void BlockModel::compress_slices(int top_slice, int n_slices) {
         }
     }
 
-    // Use concurrent_vector to store results
-    tbb::concurrent_vector<std::string> results(parent_blocks.size());
+    // Pre-size results; each task writes to a unique index → no synchronization needed
+    std::vector<std::string> results(parent_blocks.size());
 
     // Process blocks in parallel
+    // Tune grainsize to reduce scheduling overhead at higher thread counts
+    size_t total = parent_blocks.size();
+    unsigned int threads = std::max(1u, num_threads);
+    size_t grainsize = std::max<size_t>(1, total / (threads * 4));
+    tbb::affinity_partitioner ap;
+
     tbb::parallel_for(
-        tbb::blocked_range<size_t>(0, parent_blocks.size()), [&](const tbb::blocked_range<size_t>& range) {
+        tbb::blocked_range<size_t>(0, total, grainsize),
+        [&](const tbb::blocked_range<size_t>& range) {
             for (size_t i = range.begin(); i != range.end(); ++i) {
                 auto [x, y, z, width, height, depth, tag] = parent_blocks[i];
 
                 Block parentBlock(x, y, z, width, height, depth, tag);
                 Flat3D<char> model_slices = slice_model(model, depth, y, parentBlock.y_end, x, parentBlock.x_end);
-
-                // Use thread-safe string-based output
                 BlockGrowth growth(model_slices, tag_table);
                 results[i] = growth.run_to_string(parentBlock);
             }
-        }
+        },
+        ap
     );
 
     // Output results in original order
