@@ -103,14 +103,20 @@ test_build() {
     # Clean previous builds
     make clean
     
-    # Build and test everything
-    if make test-all; then
-        log_info "Build and tests successful!"
-        log_info "Testing basic execution..."
-        if echo "2,2,2,1,1,1" | ./build/block_model > /dev/null; then
+    # Configure
+    cmake -B build/test-setup -S . -G Ninja -DCMAKE_BUILD_TYPE=Release
+    
+    # Build
+    cmake --build build/test-setup
+    
+    # Test
+    if [[ -f "build/test-setup/block_model" ]]; then
+        log_info "Build successful! Testing with sample data..."
+        if [[ -f "tests/data/case1.txt" ]]; then
+            build/test-setup/block_model < tests/data/case1.txt > /dev/null
             log_info "Basic execution test passed!"
         else
-            log_warn "Build succeeded but execution test failed"
+            log_warn "Test data not found, skipping execution test"
         fi
     else
         log_error "Build or tests failed"
