@@ -1,36 +1,50 @@
 #ifndef BLOCK_GROWTH_H
 #define BLOCK_GROWTH_H
 
+#include <vector>
 #include <string>
 #include <unordered_map>
 #include "block.h"
 
+// Flattened 3D container: [depth][height][width]
+template<typename T>
+class Flat3D {
+public:
+    int depth, height, width;
+    std::vector<T> data;
+
+    Flat3D() : depth(0), height(0), width(0) {}
+    Flat3D(int d, int h, int w, T init = T())
+        : depth(d), height(h), width(w), data(d * h * w, init) {}
+
+    inline T& at(int z, int y, int x) {
+        return data[(z * height + y) * width + x];
+    }
+
+    inline const T& at(int z, int y, int x) const {
+        return data[(z * height + y) * width + x];
+    }
+};
+
 // BlockGrowth encapsulates the "fit & grow" compression logic for a parent block
-// over a sub-volume (flattened model_slices). The tag_table maps single-char tags to labels.
+// over a sub-volume (model_slices). The tag_table maps single-char tags to labels.
 class BlockGrowth {
 public:
-    // New constructor: flattened model, dimensions, tag table
-    BlockGrowth(const std::string& model_flat, int width, int height, int depth,
+    BlockGrowth(const Flat3D<char>& model_slices,
                 const std::unordered_map<char, std::string>& tag_table);
 
-    // Run the compression/growth algorithm on the given parent block.
-    // Prints each fitted/grown block using Block::print_block(label).
     void run(Block parent_block);
 
 private:
-    // Inputs
-    const std::string& model; // flattened: depth*height*width
-    int width, height, depth;  // dimensions of this sub-volume
+    const Flat3D<char>& model; 
     const std::unordered_map<char, std::string>& tag_table;
 
-    // State for current run()
     Block parent_block{0,0,0,0,0,0,'\0'};
     int parent_x_end = 0, parent_y_end = 0, parent_z_end = 0;
 
-    // Tracks which cells in 'model' have been compressed (claimed)
-    std::string compressed; // same size as model, '0' = uncompressed, '1' = compressed
+    // Tracks which cells in 'model' have been compressed (0 = false, 1 = true)
+    Flat3D<char> compressed;
 
-    // Helper functions
     bool all_compressed() const;
     char get_mode_of_uncompressed(const Block& blk) const;
 
@@ -40,10 +54,7 @@ private:
     bool window_is_all(char val,
                        int z0, int z1, int y0, int y1, int x0, int x1) const;
     bool window_is_all_uncompressed(int z0, int z1, int y0, int y1, int x0, int x1) const;
-    void mark_compressed(int z0, int z1, int y0, int y1, int x0, int x1, bool v);
-
-    // Flattened index helper
-    inline int idx(int z, int y, int x) const { return z * height * width + y * width + x; }
+    void mark_compressed(int z0, int z1, int y0, int y1, int x0, int x1, char v);
 };
 
 #endif // BLOCK_GROWTH_H

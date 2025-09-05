@@ -3,7 +3,6 @@
 
 #include <string>
 #include <unordered_map>
-#include <vector>
 #include "block.h"
 #include "block_growth.h"
 
@@ -19,8 +18,8 @@ private:
     int x_count = 0, y_count = 0, z_count = 0;
     int parent_x = 0, parent_y = 0, parent_z = 0;
 
-    // Flattened ring buffer: size = parent_z * y_count * x_count
-    std::string model;
+    // Ring buffer for slices: [parent_z][y_count][x_count]
+    Flat3D<char> model;
 
     // Single-char tag -> label
     std::unordered_map<char, std::string> tag_table;
@@ -30,10 +29,8 @@ private:
     static void getline_strict(std::string& out);
     static std::vector<int> split_csv_ints(const std::string& line);
 
-    // Extracts a sub-volume slice and flattens it
-    static std::string slice_model(const std::string& src,
-                                   int width, int height, int depth,
-                                   int z0, int z1, int y0, int y1, int x0, int x1);
+    static Flat3D<char> slice_model(const Flat3D<char>& src,
+                                    int depth, int y0, int y1, int x0, int x1);
 
     void compress_slices(int top_slice, int n_slices);
 };
