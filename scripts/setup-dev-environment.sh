@@ -146,8 +146,12 @@ test_build() {
     # Test
     if [[ -f "build/test-setup/block_model" ]]; then
         log_info "Build successful! Testing with sample data..."
-        echo "2,2,2,1,1,1" | build/test-setup/block_model > /dev/null
-        log_info "Basic execution test passed!"
+        if [[ -f "tests/data/case1.txt" ]]; then
+            build/test-setup/block_model < tests/data/case1.txt > /dev/null
+            log_info "Basic execution test passed!"
+        else
+            log_warn "Test data not found, skipping execution test"
+        fi
     else
         log_error "Build failed - executable not found"
         exit 1
