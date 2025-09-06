@@ -49,7 +49,11 @@ windows-zip: $(WINDOWS_TARGET)
 	cd $(BUILD_DIR) && zip -j block_model.exe.zip block_model.exe
 
 # Windows package - complete build and packaging process
-windows-package: install-mingw windows windows-zip
+windows-package: install-mingw
+	@echo "Building Windows executable..."
+	$(MAKE) windows
+	@echo "Creating Windows package..."
+	cd $(BUILD_DIR) && zip -j block_model.exe.zip block_model.exe
 	@echo "Windows executable packaged successfully!"
 	@echo "File: $(BUILD_DIR)/block_model.exe.zip"
 	@ls -la $(BUILD_DIR)/block_model.exe.zip
@@ -131,6 +135,13 @@ install-mingw:
 		 sudo apt install -y mingw-w64)
 	@echo "MinGW-w64 is ready!"
 
+# Generate compile_commands.json for IDE support
+compile-commands:
+	@echo "Generating compile_commands.json for IDE support..."
+	$(MAKE) clean
+	bear -- $(MAKE) all
+	@echo "✓ compile_commands.json generated successfully!"
+
 # Help target
 help:
 	@echo "Available targets:"
@@ -150,6 +161,7 @@ help:
 	@echo "  validate-case2     - Validate main program output with case2.txt"
 	@echo "  clean          - Clean build artifacts"
 	@echo "  clean-all      - Clean everything in build directory"
+	@echo "  compile-commands - Generate compile_commands.json for IDE support"
 	@echo "  install-deps   - Install all required dependencies"
 	@echo "  install-mingw  - Install MinGW-w64 for Windows cross-compilation"
 	@echo "  help           - Show this help message"
@@ -159,7 +171,7 @@ help:
 	@echo "  2. Submit build/block_model.exe.zip"
 
 # Phony targets
-.PHONY: all windows windows-zip windows-package test test-all test-compression-unit test-integration clean clean-all install-deps install-mingw run-case1 run-case2 run-validate-test run-compression-test validate-case1 validate-case2 help
+.PHONY: all windows windows-zip windows-package test test-all test-compression-unit test-integration clean clean-all compile-commands install-deps install-mingw run-case1 run-case2 run-validate-test run-compression-test validate-case1 validate-case2 help
 
 # Dependencies (header files)
 $(BUILD_DIR)/main.o: $(INCLUDE_DIR)/block_model.h

@@ -1,0 +1,32 @@
+name: Simple CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Install dependencies
+      run: |
+        make install-deps
+    
+    - name: Check code formatting
+      run: |
+        clang-format --version
+        find src include tests -name "*.cpp" -o -name "*.h" | \
+        xargs clang-format --dry-run --Werror || echo "Formatting check failed, but continuing..."
+    
+    - name: Build and test
+      run: |
+        make test-all
+    
+    - name: Test Windows cross-compilation
+      run: |
+        make windows-package

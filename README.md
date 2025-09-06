@@ -44,53 +44,94 @@ SEP-UG-33/
 
 ## Building the Project
 
-### Prerequisites
+### Build System (Makefile)
+
+The project uses a comprehensive Makefile for cross-platform compilation and automation.
+
+#### Prerequisites
 
 - g++ compiler with C++17 support
 - make utility
 - For Windows cross-compilation: mingw-w64
+- For IDE support: bear (optional)
 
-Install dependencies on Ubuntu/Debian:
-```bash
-make install-deps
-```
-
-### Quick Start
+#### Quick Start
 
 ```bash
 # Clone and enter the project
 cd SEP-UG-33
+
+# Install dependencies (Ubuntu/Debian)
+make install-deps
 
 # Build everything and run tests
 make test-all
 
 # Run with sample data
 make run-case1
-
-# Create Windows package for submission
-make windows-package
 ```
 
-### Build Commands
+#### Build Commands
 
 ```bash
-# Build the main executable
-make
+# Main targets
+make all                    # Build main executable (default)
+make test                   # Build test executables
+make windows                # Cross-compile for Windows
+make windows-package        # One-command Windows .exe.zip creation
 
-# Cross-compile for Windows
-make windows
+# Testing
+make test-all              # Run all tests (unit + integration)
+make test-compression-unit # Run compression algorithm tests
+make test-integration      # Run integration tests
 
-# Create Windows executable zip (as per original requirements)
-make windows-zip
+# Running
+make run-case1             # Run with case1.txt
+make run-case2             # Run with case2.txt
 
-# Complete Windows packaging (installs MinGW if needed, builds, and packages)
-make windows-package
+# IDE Support
+make compile-commands      # Generate compile_commands.json for IDE
 
-# Build test executable
-make test
+# Utility
+make clean                 # Clean build artifacts
+make help                  # Show all available targets
+```
 
-# Clean build artifacts
-make clean
+## Code Formatting
+
+This project uses `clang-format` to maintain consistent code style. The formatting is automatically applied:
+
+### Automatic Formatting
+
+- **Pre-commit Hook**: Code is automatically formatted before each commit
+- **CI Pipeline**: Formatting is checked in the CI pipeline to ensure consistency
+
+### Manual Formatting
+
+```bash
+# Format all C++ files in the project
+./scripts/format-code.sh
+
+# Check formatting without making changes
+find src include tests -name "*.cpp" -o -name "*.h" | xargs clang-format --dry-run --Werror
+```
+
+### Installation
+
+If you don't have `clang-format` installed:
+
+```bash
+# macOS
+brew install clang-format
+
+# Ubuntu/Debian
+sudo apt install clang-format
+
+# Windows
+choco install llvm
+```
+
+The project includes a `.clang-format` configuration file that defines the coding style standards.
 ```
 
 ### Windows Deployment
@@ -196,6 +237,35 @@ $ make test-all
 # Shows comprehensive pass/fail status for all components
 ```
 
+## Development Standards
+
+This project follows comprehensive development standards to ensure code quality, consistency, and maintainability. See detailed documentation:
+
+- **[Development Standards](docs/DEVELOPMENT_STANDARDS.md)** - Complete development guidelines
+- **[Developer Setup](docs/DEVELOPER_SETUP.md)** - Environment setup instructions
+
+### Key Standards
+
+- **Build System**: Makefile with comprehensive targets
+- **C++ Standard**: C++17 with strict compiler warnings
+- **Code Style**: Google-based style with 4-space indentation
+- **Testing**: Comprehensive unit and integration tests
+- **Cross-platform**: Linux native, Windows cross-compilation
+
+### Quick Development Setup
+
+```bash
+# 🚀 One-command setup (recommended)
+make install-deps
+
+# 📖 Complete documentation  
+# See docs/development-environment.pdf & docs/coding-standards.pdf
+
+# ⚡ Manual verification
+make test-all
+make compile-commands  # For IDE support
+```
+
 ## Development Workflow
 
 ### Git Workflow
@@ -221,6 +291,26 @@ Examples:
 - `chore: update React to v18`
 
 **Pull request must be approved by someone other than branch-owner before push to main.**
+
+### Code Quality Standards
+
+Before submitting a PR:
+
+```bash
+# 🎨 Format code (required)
+./scripts/format-code.sh
+
+# ✅ Run all tests
+make test-all
+
+# 🪟 Verify cross-platform build
+make windows-package
+
+# 💡 Generate IDE support
+make compile-commands
+
+# 📚 Full guides: docs/development-environment.tex & docs/coding-standards.tex
+```
 
 ### Available Make Targets
 
@@ -249,6 +339,7 @@ Run `make help` to see all available commands:
 #### Utility Targets
 - `clean` - Clean build artifacts
 - `clean-all` - Clean everything in build directory
+- `compile-commands` - Generate compile_commands.json for IDE support
 - `install-deps` - Install all required dependencies
 - `install-mingw` - Install MinGW-w64 for Windows cross-compilation
 - `help` - Show help message

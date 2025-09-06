@@ -1,0 +1,45 @@
+CompileFlags:
+  Add: 
+    - -std=c++17
+    - -Wall
+    - -Wextra
+    - -Iinclude
+    - -I./include
+    - -I/usr/include/c++/13
+    - -I/usr/include/x86_64-linux-gnu/c++/13
+  Remove:
+    - -W*
+    - -fcoroutines-ts
+
+Index:
+  Background: Build
+
+InlayHints:
+  Enabled: true
+  ParameterNames: true
+  DeducedTypes: true
+
+Hover:
+  ShowAKA: true
+
+Diagnostics:
+  ClangTidy:
+    Add: 
+      - "bugprone-*"
+      - "performance-*"
+      - "readability-*"
+    Remove: 
+      - "modernize-*"
+      - "llvm-*"
+      - "google-*"
+      - "hicpp-*"
+      - "cert-*"
+      - "misc-*"
+      - "clang-analyzer-*"
+      - "readability-magic-numbers"
+      - "readability-identifier-length"
+      - "readability-function-cognitive-complexity"
+      - "readability-else-after-return"
+      - "bugprone-easily-swappable-parameters"
+      - "performance-avoid-endl"
+  UnusedIncludes: None
