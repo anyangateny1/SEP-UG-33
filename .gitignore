@@ -16,6 +16,8 @@ vcpkg_installed/
 .vcpkg-root
 
 # IDE files
+.cache
+*.vscode
 .vs/
 .vscode/settings.json
 .vscode/launch.json
