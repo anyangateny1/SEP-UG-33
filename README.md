@@ -44,16 +44,16 @@ SEP-UG-33/
 
 ## Building the Project
 
-### Modern Build System (CMake) - Recommended
+### Build System (Makefile)
 
-The project now uses CMake as the primary build system for better cross-platform support and modern C++ toolchain integration.
+The project uses a comprehensive Makefile for cross-platform compilation and automation.
 
 #### Prerequisites
 
-- CMake 3.16+
-- C++17 compatible compiler (GCC 7+, Clang 7+, MSVC 2019+)
-- Ninja build system (recommended) or Make
-- Optional: vcpkg for dependency management
+- g++ compiler with C++17 support
+- make utility
+- For Windows cross-compilation: mingw-w64
+- For IDE support: bear (optional)
 
 #### Quick Start
 
@@ -61,43 +61,40 @@ The project now uses CMake as the primary build system for better cross-platform
 # Clone and enter the project
 cd SEP-UG-33
 
-# Set up development environment (automated)
-./scripts/setup-dev-environment.sh
+# Install dependencies (Ubuntu/Debian)
+make install-deps
 
-# Or manual setup:
-# Configure and build
-cmake --preset release
-cmake --build build/release
-
-# Run tests
-ctest --test-dir build/release
+# Build everything and run tests
+make test-all
 
 # Run with sample data
-cmake --build build/release --target run-case1
+make run-case1
 ```
 
 #### Build Commands
 
 ```bash
-# Linux development builds
-cmake --preset debug           # Debug build (Linux)
-cmake --preset release         # Release build (Linux) 
-cmake --build build/release    # Build Linux executable
-
-# Windows submission (choose one method)
-cmake --preset windows-mingw   # Windows cross-compilation (CMake)
-cmake --build build/windows-mingw
-# OR (easier)
-make windows-package           # One-command Windows .exe.zip creation
+# Main targets
+make all                    # Build main executable (default)
+make test                   # Build test executables
+make windows                # Cross-compile for Windows
+make windows-package        # One-command Windows .exe.zip creation
 
 # Testing
-ctest --test-dir build/release --output-on-failure
-cmake --build build/release --target test-all
+make test-all              # Run all tests (unit + integration)
+make test-compression-unit # Run compression algorithm tests
+make test-integration      # Run integration tests
 
-# Utility targets
-cmake --build build/release --target run-case1
-cmake --build build/release --target run-case2
-cmake --build build/release --target format  # Code formatting
+# Running
+make run-case1             # Run with case1.txt
+make run-case2             # Run with case2.txt
+
+# IDE Support
+make compile-commands      # Generate compile_commands.json for IDE
+
+# Utility
+make clean                 # Clean build artifacts
+make help                  # Show all available targets
 ```
 
 ## Code Formatting
@@ -135,28 +132,6 @@ choco install llvm
 ```
 
 The project includes a `.clang-format` configuration file that defines the coding style standards.
-cmake --build build/release --target lint    # Static analysis
-```
-
-### Legacy Build System (Makefile) - Still Supported
-
-For compatibility, the original Makefile is still available:
-
-#### Prerequisites
-
-- g++ compiler with C++17 support
-- make utility
-- For Windows cross-compilation: mingw-w64
-
-```bash
-# Install dependencies on Ubuntu/Debian
-make install-deps
-
-# Build everything and run tests
-make test-all
-
-# Create Windows package for submission
-make windows-package
 ```
 
 ### Windows Deployment
@@ -271,25 +246,24 @@ This project follows comprehensive development standards to ensure code quality,
 
 ### Key Standards
 
-- **Build System**: CMake 3.16+ with vcpkg for dependencies
+- **Build System**: Makefile with comprehensive targets
 - **C++ Standard**: C++17 with strict compiler warnings
 - **Code Style**: Google-based style with 4-space indentation
 - **Testing**: Comprehensive unit and integration tests
-- **CI/CD**: Automated testing across platforms
+- **Cross-platform**: Linux native, Windows cross-compilation
 
 ### Quick Development Setup
 
 ```bash
 # 🚀 One-command setup (recommended)
-./scripts/setup-dev-environment.sh
+make install-deps
 
 # 📖 Complete documentation  
 # See docs/development-environment.pdf & docs/coding-standards.pdf
 
 # ⚡ Manual verification
-cmake --preset release
-cmake --build build/release
-ctest --test-dir build/release
+make test-all
+make compile-commands  # For IDE support
 ```
 
 ## Development Workflow
@@ -324,17 +298,16 @@ Before submitting a PR:
 
 ```bash
 # 🎨 Format code (required)
-cmake --build build --target format
-
-# 🔍 Run static analysis
-cmake --build build --target lint
+./scripts/format-code.sh
 
 # ✅ Run all tests
-cmake --build build --target test-all
+make test-all
 
 # 🪟 Verify cross-platform build
-cmake --preset windows-mingw
-cmake --build build/windows-mingw
+make windows-package
+
+# 💡 Generate IDE support
+make compile-commands
 
 # 📚 Full guides: docs/development-environment.tex & docs/coding-standards.tex
 ```
@@ -366,6 +339,7 @@ Run `make help` to see all available commands:
 #### Utility Targets
 - `clean` - Clean build artifacts
 - `clean-all` - Clean everything in build directory
+- `compile-commands` - Generate compile_commands.json for IDE support
 - `install-deps` - Install all required dependencies
 - `install-mingw` - Install MinGW-w64 for Windows cross-compilation
 - `help` - Show help message

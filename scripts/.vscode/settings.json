@@ -1,0 +1,16 @@
+{
+    "cmake.configureOnOpen": true,
+    "cmake.preferredGenerators": ["Ninja"],
+    "cmake.buildDirectory": "${workspaceFolder}/build/${buildType}",
+    "clangd.arguments": [
+        "--compile-commands-dir=${workspaceFolder}/build",
+        "--header-insertion=never"
+    ],
+    "files.associations": {
+        "*.h": "cpp",
+        "*.hpp": "cpp"
+    },
+    "editor.formatOnSave": true,
+    "C_Cpp.formatting": "clangFormat",
+    "C_Cpp.clang_format_style": "file"
+}

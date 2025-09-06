@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # SEP-UG-33 Development Environment Setup Script
-# Supports Ubuntu/Debian, macOS, and basic Windows (WSL)
+# Simple Makefile-based setup for Ubuntu/Debian, macOS, and WSL
 
 set -e
 
@@ -49,20 +49,8 @@ install_dependencies() {
     
     case $OS in
         "ubuntu")
-            sudo apt update
-            sudo apt install -y \
-                build-essential \
-                cmake \
-                ninja-build \
-                clang \
-                clang-format \
-                clang-tidy \
-                mingw-w64 \
-                git \
-                curl \
-                zip \
-                unzip \
-                tar
+            log_info "Using Makefile for dependency installation..."
+            make install-deps
             ;;
         "macos")
             if ! command -v brew &> /dev/null; then
@@ -71,85 +59,61 @@ install_dependencies() {
                 exit 1
             fi
             
-            brew install cmake ninja clang-format git curl
+            brew install clang-format git curl
+            log_info "Basic tools installed. Cross-compilation not supported on macOS."
             ;;
         "rhel")
             sudo yum groupinstall -y "Development Tools"
-            sudo yum install -y cmake ninja-build clang git curl
+            sudo yum install -y git curl
+            log_warn "Manual MinGW installation may be needed for Windows cross-compilation"
             ;;
         *)
             log_warn "Unsupported OS: $OS. Please install dependencies manually."
-            log_info "Required: cmake, ninja-build, clang, clang-format, git"
+            log_info "Required: build-essential, mingw-w64 (for cross-compilation)"
             ;;
     esac
 }
 
-# Setup vcpkg
-setup_vcpkg() {
-    local vcpkg_dir="$1"
+# Setup IDE integration
+setup_ide_integration() {
+    log_info "Setting up IDE integration..."
     
-    if [[ -z "$vcpkg_dir" ]]; then
-        vcpkg_dir="../vcpkg"
-    fi
-    
-    log_info "Setting up vcpkg at $vcpkg_dir..."
-    
-    if [[ ! -d "$vcpkg_dir" ]]; then
-        log_info "Cloning vcpkg..."
-        git clone https://github.com/Microsoft/vcpkg.git "$vcpkg_dir"
-    else
-        log_info "vcpkg directory already exists. Updating..."
-        cd "$vcpkg_dir"
-        git pull
-        cd -
-    fi
-    
-    # Bootstrap vcpkg
-    cd "$vcpkg_dir"
-    if [[ "$OS" == "windows" ]]; then
-        ./bootstrap-vcpkg.bat
-    else
-        ./bootstrap-vcpkg.sh
-    fi
-    cd -
-    
-    # Set environment variable
-    export VCPKG_ROOT="$(realpath "$vcpkg_dir")"
-    
-    # Add to shell profiles
-    local shell_profiles=("$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.profile")
-    for profile in "${shell_profiles[@]}"; do
-        if [[ -f "$profile" ]]; then
-            if ! grep -q "VCPKG_ROOT" "$profile"; then
-                echo "export VCPKG_ROOT=\"$VCPKG_ROOT\"" >> "$profile"
-                log_info "Added VCPKG_ROOT to $profile"
-            fi
+    # Install bear for compile_commands.json generation (Ubuntu only)
+    if [[ "$OS" == "ubuntu" ]]; then
+        if ! command -v bear &> /dev/null; then
+            log_info "Installing bear for IDE support..."
+            sudo apt install -y bear
         fi
-    done
+    fi
     
-    log_info "vcpkg setup complete. VCPKG_ROOT=$VCPKG_ROOT"
+    # Generate compile_commands.json
+    if command -v bear &> /dev/null; then
+        log_info "Generating compile_commands.json..."
+        make compile-commands
+    else
+        log_warn "bear not available. IDE IntelliSense may be limited."
+        log_info "On Ubuntu: sudo apt install bear"
+    fi
 }
 
 # Test build
 test_build() {
-    log_info "Testing CMake build..."
+    log_info "Testing Makefile build..."
     
     # Clean previous builds
-    rm -rf build/test-setup
+    make clean
     
-    # Configure
-    cmake -B build/test-setup -S . -G Ninja -DCMAKE_BUILD_TYPE=Release
-    
-    # Build
-    cmake --build build/test-setup
-    
-    # Test
-    if [[ -f "build/test-setup/block_model" ]]; then
-        log_info "Build successful! Testing with sample data..."
-        echo "2,2,2,1,1,1" | build/test-setup/block_model > /dev/null
-        log_info "Basic execution test passed!"
+    # Build and test everything
+    if make test-all; then
+        log_info "Build and tests successful!"
+        log_info "Testing basic execution..."
+        if echo "2,2,2,1,1,1" | ./build/block_model > /dev/null; then
+            log_info "Basic execution test passed!"
+        else
+            log_warn "Build succeeded but execution test failed"
+        fi
     else
-        log_error "Build failed - executable not found"
+        log_error "Build or tests failed"
         exit 1
     fi
 }
@@ -161,14 +125,11 @@ setup_ide() {
     # Create .vscode directory if it doesn't exist
     mkdir -p .vscode
     
-    # VSCode settings
+    # VSCode settings for Makefile project
     cat > .vscode/settings.json << 'EOF'
 {
-    "cmake.configureOnOpen": true,
-    "cmake.preferredGenerators": ["Ninja"],
-    "cmake.buildDirectory": "${workspaceFolder}/build/${buildType}",
     "clangd.arguments": [
-        "--compile-commands-dir=${workspaceFolder}/build",
+        "--compile-commands-dir=${workspaceFolder}",
         "--header-insertion=never"
     ],
     "files.associations": {
@@ -186,7 +147,6 @@ EOF
 {
     "recommendations": [
         "ms-vscode.cpptools-extension-pack",
-        "ms-vscode.cmake-tools",
         "llvm-vs-code-extensions.vscode-clangd"
     ]
 }
@@ -195,16 +155,9 @@ EOF
     log_info "IDE configuration complete"
 }
 
-# Generate compile commands
+# Generate compile commands (handled by setup_ide_integration now)
 generate_compile_commands() {
-    log_info "Generating compile_commands.json..."
-    
-    cmake -B build/compile-commands -S . -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-    
-    if [[ -f "build/compile-commands/compile_commands.json" ]]; then
-        cp build/compile-commands/compile_commands.json .
-        log_info "compile_commands.json generated successfully"
-    fi
+    setup_ide_integration
 }
 
 # Main setup function
@@ -212,30 +165,24 @@ main() {
     log_info "Starting SEP-UG-33 development environment setup..."
     
     # Parse command line arguments
-    SETUP_VCPKG=true
-    VCPKG_DIR="../vcpkg"
     SKIP_DEPS=false
+    SKIP_IDE=false
     
     while [[ $# -gt 0 ]]; do
         case $1 in
-            --skip-vcpkg)
-                SETUP_VCPKG=false
-                shift
-                ;;
-            --vcpkg-dir)
-                VCPKG_DIR="$2"
-                shift 2
-                ;;
             --skip-deps)
                 SKIP_DEPS=true
+                shift
+                ;;
+            --skip-ide)
+                SKIP_IDE=true
                 shift
                 ;;
             -h|--help)
                 echo "Usage: $0 [OPTIONS]"
                 echo "Options:"
-                echo "  --skip-vcpkg     Skip vcpkg setup"
-                echo "  --vcpkg-dir DIR  vcpkg installation directory (default: ../vcpkg)"
                 echo "  --skip-deps      Skip system dependency installation"
+                echo "  --skip-ide       Skip IDE configuration setup"
                 echo "  -h, --help       Show this help message"
                 exit 0
                 ;;
@@ -257,18 +204,13 @@ main() {
         log_info "Skipping dependency installation"
     fi
     
-    # Setup vcpkg
-    if [[ "$SETUP_VCPKG" == true ]]; then
-        setup_vcpkg "$VCPKG_DIR"
-    else
-        log_info "Skipping vcpkg setup"
-    fi
-    
     # Setup IDE
-    setup_ide
-    
-    # Generate compile commands
-    generate_compile_commands
+    if [[ "$SKIP_IDE" == false ]]; then
+        setup_ide
+        generate_compile_commands
+    else
+        log_info "Skipping IDE setup"
+    fi
     
     # Test build
     test_build
@@ -276,14 +218,15 @@ main() {
     log_info "Development environment setup complete!"
     log_info ""
     log_info "Next steps:"
-    log_info "1. Restart your shell or run: source ~/.bashrc"
-    log_info "2. Open project in your IDE"
-    log_info "3. Start developing!"
+    log_info "1. Open project in your IDE"
+    log_info "2. Start developing!"
     log_info ""
     log_info "Quick commands:"
-    log_info "  cmake --preset release    # Configure release build"
-    log_info "  cmake --build build/release  # Build project"
-    log_info "  ctest --test-dir build/release  # Run tests"
+    log_info "  make test-all              # Build and test everything"
+    log_info "  make run-case1             # Test with sample data"
+    log_info "  make windows-package       # Create Windows submission"
+    log_info "  make compile-commands      # Regenerate IDE support"
+    log_info "  make help                  # Show all available targets"
 }
 
 # Run main function
