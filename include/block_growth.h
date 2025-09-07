@@ -6,34 +6,45 @@
 #include <unordered_map>
 #include "block.h"
 
-// 3D alias: [depth][height][width]
+// Flattened 3D container: [depth][height][width]
 template<typename T>
-using Vec3 = std::vector<std::vector<std::vector<T>>>;
+class Flat3D {
+public:
+    int depth, height, width;
+    std::vector<T> data;
+
+    Flat3D() : depth(0), height(0), width(0) {}
+    Flat3D(int d, int h, int w, T init = T())
+        : depth(d), height(h), width(w), data(d * h * w, init) {}
+
+    inline T& at(int z, int y, int x) {
+        return data[(z * height + y) * width + x];
+    }
+
+    inline const T& at(int z, int y, int x) const {
+        return data[(z * height + y) * width + x];
+    }
+};
 
 // BlockGrowth encapsulates the "fit & grow" compression logic for a parent block
 // over a sub-volume (model_slices). The tag_table maps single-char tags to labels.
 class BlockGrowth {
 public:
-    BlockGrowth(const Vec3<char>& model_slices,
+    BlockGrowth(const Flat3D<char>& model_slices,
                 const std::unordered_map<char, std::string>& tag_table);
 
-    // Run the compression/growth algorithm on the given parent block.
-    // Prints each fitted/grown block using Block::print_block(label).
     void run(Block parent_block);
 
 private:
-    // Inputs
-    const Vec3<char>& model; // sub-volume: depth x height x width
+    const Flat3D<char>& model; 
     const std::unordered_map<char, std::string>& tag_table;
 
-    // State for current run()
     Block parent_block{0,0,0,0,0,0,'\0'};
     int parent_x_end = 0, parent_y_end = 0, parent_z_end = 0;
 
-    // Tracks which cells in 'model' have been compressed (claimed)
-    Vec3<bool> compressed; // same shape as 'model'
+    // Tracks which cells in 'model' have been compressed (0 = false, 1 = true)
+    Flat3D<char> compressed;
 
-    // Helper functions
     bool all_compressed() const;
     char get_mode_of_uncompressed(const Block& blk) const;
 
@@ -43,7 +54,7 @@ private:
     bool window_is_all(char val,
                        int z0, int z1, int y0, int y1, int x0, int x1) const;
     bool window_is_all_uncompressed(int z0, int z1, int y0, int y1, int x0, int x1) const;
-    void mark_compressed(int z0, int z1, int y0, int y1, int x0, int x1, bool v);
+    void mark_compressed(int z0, int z1, int y0, int y1, int x0, int x1, char v);
 };
 
 #endif // BLOCK_GROWTH_H
