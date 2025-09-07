@@ -98,43 +98,23 @@ Block BlockGrowth::fit_block(char mode, int width, int height, int depth) {
 }
 
 bool BlockGrowth::window_is_all(char val,
-                                int z0, int z1,
-                                int y0, int y1,
-                                int x0, int x1) const {
-    int volume = (z1-z0) * (y1-y0) * (x1-x0);
-
-    // fallback for small blocks (cheap to brute-force)
-    if (volume <= 32) {
-        for (int z = z0; z < z1; ++z)
-            for (int y = y0; y < y1; ++y)
-                for (int x = x0; x < x1; ++x)
-                    if (model[z][y][x] != val) return false;
-        return true;
-    }
-
-    int count = query_prefix(prefix_tag, z0, y0, x0, z1, y1, x1);
-    return (count == volume);
+                                int z0, int z1, int y0, int y1, int x0, int x1) const {
+    for (int z = z0; z < z1; ++z)
+        for (int y = y0; y < y1; ++y)
+            for (int x = x0; x < x1; ++x)
+                if (model.at(z, y, x) != val) return false;
+    return true;
 }
 
-bool BlockGrowth::window_is_all_uncompressed(int z0, int z1,
-                                             int y0, int y1,
-                                             int x0, int x1) const {
-    int volume = (z1-z0) * (y1-y0) * (x1-x0);
-
-    if (volume <= 32) {
-        for (int z = z0; z < z1; ++z)
-            for (int y = y0; y < y1; ++y)
-                for (int x = x0; x < x1; ++x)
-                    if (compressed[z][y][x]) return false;
-        return true;
-    }
-
-    int count = query_prefix(prefix_compressed, z0, y0, x0, z1, y1, x1);
-    return (count == 0);
+bool BlockGrowth::window_is_all_uncompressed(int z0, int z1, int y0, int y1, int x0, int x1) const {
+    for (int z = z0; z < z1; ++z)
+        for (int y = y0; y < y1; ++y)
+            for (int x = x0; x < x1; ++x)
+                if (compressed.at(z, y, x) != 0) return false;
+    return true;
 }
 
-
-void BlockGrowth::mark_compressed(int z0, int z1, int y0, int y1, int x0, int x1, bool v) {
+void BlockGrowth::mark_compressed(int z0, int z1, int y0, int y1, int x0, int x1, char v) {
     for (int z = z0; z < z1; ++z)
         for (int y = y0; y < y1; ++y)
             for (int x = x0; x < x1; ++x)
@@ -183,61 +163,4 @@ void BlockGrowth::grow_block(Block& b) {
             if (ok) { b.depth++; grown = true; continue; }
         }
     }
-}
-
-
-
-//All the 3D prefix table stuff
-void BlockGrowth::build_prefix_tables(char tag) {
-    D = parent_block.depth;
-    H = parent_block.height;
-    W = parent_block.width;
-
-    int size = (D+1) * (H+1) * (W+1);
-    prefix_tag.assign(size, 0);
-    prefix_compressed.assign(size, 0);
-
-    // Build prefix sums
-    for (int z = 1; z <= D; ++z) {
-        for (int y = 1; y <= H; ++y) {
-            for (int x = 1; x <= W; ++x) {
-                int is_tag = (model[z-1][y-1][x-1] == tag);
-                int is_compressed = (compressed[z-1][y-1][x-1] ? 1 : 0);
-
-                prefix_tag[idx(z,y,x)] =
-                      is_tag
-                    + prefix_tag[idx(z-1,y,x)]
-                    + prefix_tag[idx(z,y-1,x)]
-                    + prefix_tag[idx(z,y,x-1)]
-                    - prefix_tag[idx(z-1,y-1,x)]
-                    - prefix_tag[idx(z-1,y,x-1)]
-                    - prefix_tag[idx(z,y-1,x-1)]
-                    + prefix_tag[idx(z-1,y-1,x-1)];
-
-                prefix_compressed[idx(z,y,x)] =
-                      is_compressed
-                    + prefix_compressed[idx(z-1,y,x)]
-                    + prefix_compressed[idx(z,y-1,x)]
-                    + prefix_compressed[idx(z,y,x-1)]
-                    - prefix_compressed[idx(z-1,y-1,x)]
-                    - prefix_compressed[idx(z-1,y,x-1)]
-                    - prefix_compressed[idx(z,y-1,x-1)]
-                    + prefix_compressed[idx(z-1,y-1,x-1)];
-            }
-        }
-    }
-}
-
-int BlockGrowth::query_prefix(const std::vector<int>& psum,
-                              int z0, int y0, int x0,
-                              int z1, int y1, int x1) const {
-    // inclusive-exclusive, so indices are already offset
-    return psum[idx(z1,y1,x1)]
-         - psum[idx(z0,y1,x1)]
-         - psum[idx(z1,y0,x1)]
-         - psum[idx(z1,y1,x0)]
-         + psum[idx(z0,y0,x1)]
-         + psum[idx(z0,y1,x0)]
-         + psum[idx(z1,y0,x0)]
-         - psum[idx(z0,y0,x0)];
 }
