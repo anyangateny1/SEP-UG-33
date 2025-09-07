@@ -39,6 +39,14 @@ private:
     const Flat3D<char>& model; 
     const std::unordered_map<char, std::string>& tag_table;
 
+    //Prefix sum tables
+    std::vector<int> prefix_tag;
+    std::vector<int> prefix_compressed;
+    int D, H, W;
+    bool prefix_enabled = false; //control hybrid method. Prefix sums only for large blocks
+    int candidate_count = 0;
+
+    // State for current run()
     Block parent_block{0,0,0,0,0,0,'\0'};
     int parent_x_end = 0, parent_y_end = 0, parent_z_end = 0;
 
