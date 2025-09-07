@@ -1,9 +1,12 @@
 #include "block_growth.h"
+#include <vector>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
 #include <stdexcept>
 #include <algorithm>
 
-using std::string;
-using std::unordered_map;
+using namespace std;
 
 BlockGrowth::BlockGrowth(const Flat3D<char>& model_slices,
                          const unordered_map<char, string>& tag_table)
@@ -21,10 +24,13 @@ void BlockGrowth::run(Block parent_block_) {
                               parent_block.width,
                               0);
 
+    unordered_set<array<int, 6>, hashFunction> non_uniform;
+    hash_uniformity(non_uniform);
+
     while (!all_compressed()) {
         char mode = get_mode_of_uncompressed(parent_block);
-        int cube_size = std::min({parent_block.width, parent_block.height, parent_block.depth});
-        Block b = fit_block(mode, cube_size, cube_size, cube_size);
+        int cube_size = min({parent_block.width, parent_block.height, parent_block.depth});
+        Block b = fit_block(non_uniform, mode, cube_size, cube_size, cube_size);
 
         auto it = tag_table.find(b.tag);
         const string& label = (it == tag_table.end()) ? string(1, b.tag) : it->second;
@@ -63,7 +69,48 @@ char BlockGrowth::get_mode_of_uncompressed(const Block& blk) const {
     return best;
 }
 
-Block BlockGrowth::fit_block(char mode, int width, int height, int depth) {
+array<int, 6> BlockGrowth::get_block_key(int z, int y, int x, int cube_size) {
+    return get_block_key(z, y, x, cube_size, cube_size, cube_size);
+}
+
+array<int, 6> BlockGrowth::get_block_key(int z, int y, int x, int depth, int height, int width) {
+    return { z, y, x, depth, height, width };
+}
+
+void BlockGrowth::hash_uniformity(unordered_set<array<int, 6>, hashFunction>& non_uniform) {
+    int max_cube = min({parent_block.width, parent_block.height, parent_block.depth});
+
+    int z0 = parent_block.z_offset;
+    int y0 = parent_block.y_offset;
+    int x0 = parent_block.x_offset;
+    
+    int z_end = z0 + parent_block.depth;
+    int y_end = y0 + parent_block.height;
+    int x_end = x0 + parent_block.width;
+
+    for (int z = parent_block.z_offset; z < z_end; ++z) {
+        for (int y = parent_block.y_offset; y < y_end; ++y) {
+            for (int x = parent_block.x_offset; x < x_end; ++x) {
+                bool is_uniform = true;
+                for (int cube_size = 2; cube_size <= max_cube; cube_size++) {
+                    if ((z + cube_size > z_end) ||
+                        (y + cube_size > y_end) ||
+                        (x + cube_size > x_end))
+                    {
+                        break;
+                    }
+
+                    if (!is_uniform || !window_is_all(model.at(z, y, x), z, z+cube_size, y, y+cube_size, x, x+cube_size)) {
+                        non_uniform.insert(get_block_key(z, y, x, cube_size));
+                        is_uniform = false;
+                    }
+                }
+            }
+        }
+    }
+}
+
+Block BlockGrowth::fit_block(unordered_set<array<int, 6>, hashFunction>& non_uniform, char mode, int width, int height, int depth) {
     for (int z = parent_block.z; z < parent_block.z_end; ++z) {
         int z_off = z - parent_block.z;
         int z_end = z_off + depth;
@@ -79,13 +126,14 @@ Block BlockGrowth::fit_block(char mode, int width, int height, int depth) {
                 int x_end = x_off + width;
                 if (x_end > parent_x_end) break;
 
-                if (window_is_all(mode, z_off, z_end, y_off, y_end, x_off, x_end) &&
-                    window_is_all_uncompressed(z_off, z_end, y_off, y_end, x_off, x_end)) {
-
-                    Block b(x, y, z, width, height, depth, mode, x_off, y_off, z_off);
-                    grow_block(b, b);
-                    mark_compressed(z_off, z_off+b.depth, y_off, y_off+b.height, x_off, x_off+b.width, 1);
-                    return b;
+                if (non_uniform.find(get_block_key(z_off, y_off, x_off, depth, height, width)) == non_uniform.end()) {
+                    char tag = model.at(z_off, y_off, x_off);
+                    if (window_is_all_uncompressed(z_off, z_end, y_off, y_end, x_off, x_end)) {
+                        Block b(x, y, z, width, height, depth, tag, x_off, y_off, z_off);
+                        grow_block(b, b);
+                        mark_compressed(z_off, z_off+b.depth, y_off, y_off+b.height, x_off, x_off+b.width, 1);
+                        return b;
+                    }
                 }
             }
         }
@@ -94,11 +142,10 @@ Block BlockGrowth::fit_block(char mode, int width, int height, int depth) {
     if (width <= 1 || height <= 1 || depth <= 1) {
         throw std::runtime_error("No fitting block found at minimal size.");
     }
-    return fit_block(mode, width - 1, height - 1, depth - 1);
+    return fit_block(non_uniform, mode, width - 1, height - 1, depth - 1);
 }
 
-bool BlockGrowth::window_is_all(char val,
-                                int z0, int z1, int y0, int y1, int x0, int x1) const {
+bool BlockGrowth::window_is_all(char val, int z0, int z1, int y0, int y1, int x0, int x1) const {
     for (int z = z0; z < z1; ++z)
         for (int y = y0; y < y1; ++y)
             for (int x = x0; x < x1; ++x)
@@ -132,31 +179,58 @@ void BlockGrowth::grow_block(Block& current, Block& best_block) {
     // Try +X growth
     if (x_end < parent_x_end) {
         bool ok = true;
-        for (int zz = z; zz < z_end && ok; ++zz)
+        for (int zz = z; zz < z_end && ok; ++zz) {
             for (int yy = y; yy < y_end && ok; ++yy) {
-                if (model.at(zz, yy, x_end) != b.tag || compressed.at(zz, yy, x_end) != 0) ok = false;
+                if (model.at(zz, yy, x_end) != b.tag || compressed.at(zz, yy, x_end) != 0)
+                    ok = false;
             }
-        if (ok) { b.set_width(b.width + 1); current = b; grow_block(current, best_block); if (current.volume > best_block.volume) best_block = current; b.set_width(b.width - 1); }
+        }
+        if (ok) {
+            b.set_width(b.width + 1);
+            current = b;
+            grow_block(current, best_block);
+            if (current.volume > best_block.volume)
+                best_block = current;
+            b.set_width(b.width - 1);
+        }
     }
 
     // Try +Y growth
     if (y_end < parent_y_end) {
         bool ok = true;
-        for (int zz = z; zz < z_end && ok; ++zz)
+        for (int zz = z; zz < z_end && ok; ++zz) {
             for (int xx = x; xx < x_end && ok; ++xx) {
-                if (model.at(zz, y_end, xx) != b.tag || compressed.at(zz, y_end, xx) != 0) ok = false;
+                if (model.at(zz, y_end, xx) != b.tag || compressed.at(zz, y_end, xx) != 0)
+                    ok = false;
             }
-        if (ok) { b.set_height(b.height + 1); current = b; grow_block(current, best_block); if (current.volume > best_block.volume) best_block = current; b.set_height(b.height - 1); }
+        }
+        if (ok) {
+            b.set_height(b.height + 1);
+            current = b;
+            grow_block(current, best_block);
+            if (current.volume > best_block.volume)
+                best_block = current;
+            b.set_height(b.height - 1);
+        }
     }
 
     // Try +Z growth
     if (z_end < parent_z_end) {
         bool ok = true;
-        for (int yy = y; yy < y_end && ok; ++yy)
+        for (int yy = y; yy < y_end && ok; ++yy) {
             for (int xx = x; xx < x_end && ok; ++xx) {
-                if (model.at(z_end, yy, xx) != b.tag || compressed.at(z_end, yy, xx) != 0) ok = false;
+                if (model.at(z_end, yy, xx) != b.tag || compressed.at(z_end, yy, xx) != 0)
+                    ok = false;
             }
-        if (ok) { b.set_depth(b.depth + 1); current = b; grow_block(current, best_block); if (current.volume > best_block.volume) best_block = current; b.set_depth(b.depth - 1); }
+        }
+        if (ok) {
+            b.set_depth(b.depth + 1);
+            current = b;
+            grow_block(current, best_block);
+            if (current.volume > best_block.volume)
+                best_block = current;
+            b.set_depth(b.depth - 1);
+        }
     }
 
     if (b.volume > best_block.volume)
