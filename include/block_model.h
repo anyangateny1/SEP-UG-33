@@ -1,23 +1,25 @@
 #ifndef BLOCK_MODEL_H
 #define BLOCK_MODEL_H
 
-#include <string>
-#include <unordered_map>
-#include <thread>
-#include <vector>
-#include <future>
-#include <mutex>
 #include "block.h"
 #include "block_growth.h"
+#include <future>
+#include <mutex>
+#include <string>
+#include <thread>
+#include <unordered_map>
+#include <vector>
 
 // BlockModel reads the spec, tag table, and 3D model from stdin,
 // batches slices by parent block thickness, and invokes BlockGrowth.
 class BlockModel {
 public:
-    BlockModel();               // Constructor to initialize threading
-    void read_specification();  // reads: x_count, y_count, z_count, parent_x, parent_y, parent_z
-    void read_tag_table();      // reads "tag, label" lines until an empty line
-    void read_model();          // reads z_count slices, each: y_count rows of x_count chars (then blank line)
+    BlockModel();                                // Constructor to initialize threading
+    void read_specification();                   // reads: x_count, y_count, z_count, parent_x,
+                                                 // parent_y, parent_z
+    void read_tag_table();                       // reads "tag, label" lines until an empty line
+    void read_model();                           // reads z_count slices, each: y_count rows of x_count
+                                                 // chars (then blank line)
     void set_num_threads(unsigned int threads);  // Set number of threads to use
 
 private:
