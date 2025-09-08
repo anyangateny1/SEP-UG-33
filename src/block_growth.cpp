@@ -2,7 +2,7 @@
 #include <vector>
 #include <string>
 #include <unordered_map>
-#include <unordered_set>
+#include <queue>
 #include <stdexcept>
 #include <algorithm>
 
@@ -24,17 +24,32 @@ void BlockGrowth::run(Block parent_block_) {
                               parent_block.width,
                               0);
 
-    unordered_set<array<int, 6>, hashFunction> non_uniform;
-    hash_uniformity(non_uniform);
+    priority_queue<Block> uniform;
+    search_uniform_blocks(uniform);
 
-    while (!all_compressed()) {
+    while (!uniform.empty()) {
         char mode = get_mode_of_uncompressed(parent_block);
-        int cube_size = min({parent_block.width, parent_block.height, parent_block.depth});
-        Block b = fit_block(non_uniform, mode, cube_size, cube_size, cube_size);
+        Block b = uniform.top();
+        if (!compressed.at(b.z_offset, b.y_offset, b.x_offset)) {
+            if (window_is_all_uncompressed(b.z_offset, b.z_offset+b.depth, b.y_offset, b.y_offset+b.height, b.x_offset, b.x_offset+b.width)) {
+                grow_block(b, b);
+                mark_compressed(b.z_offset, b.z_offset+b.depth, b.y_offset, b.y_offset+b.height, b.x_offset, b.x_offset+b.width, 1);
 
-        auto it = tag_table.find(b.tag);
-        const string& label = (it == tag_table.end()) ? string(1, b.tag) : it->second;
-        b.print_block(label);
+                auto it = tag_table.find(b.tag);
+                const string& label = (it == tag_table.end()) ? string(1, b.tag) : it->second;
+                b.print_block(label);
+
+                uniform.pop();
+            } else {
+                b.set_width(b.width - 1);
+                b.set_height(b.height - 1);
+                b.set_depth(b.depth - 1);
+                uniform.pop();
+                uniform.push(b);
+            }
+        } else {
+            uniform.pop();
+        }
     }
 }
 
@@ -69,80 +84,30 @@ char BlockGrowth::get_mode_of_uncompressed(const Block& blk) const {
     return best;
 }
 
-array<int, 6> BlockGrowth::get_block_key(int z, int y, int x, int cube_size) {
-    return get_block_key(z, y, x, cube_size, cube_size, cube_size);
-}
-
-array<int, 6> BlockGrowth::get_block_key(int z, int y, int x, int depth, int height, int width) {
-    return { z, y, x, depth, height, width };
-}
-
-void BlockGrowth::hash_uniformity(unordered_set<array<int, 6>, hashFunction>& non_uniform) {
+void BlockGrowth::search_uniform_blocks(priority_queue<Block>& uniform) {
     int max_cube = min({parent_block.width, parent_block.height, parent_block.depth});
-
-    int z0 = parent_block.z_offset;
-    int y0 = parent_block.y_offset;
-    int x0 = parent_block.x_offset;
-    
-    int z_end = z0 + parent_block.depth;
-    int y_end = y0 + parent_block.height;
-    int x_end = x0 + parent_block.width;
-
-    for (int z = parent_block.z_offset; z < z_end; ++z) {
-        for (int y = parent_block.y_offset; y < y_end; ++y) {
-            for (int x = parent_block.x_offset; x < x_end; ++x) {
-                bool is_uniform = true;
-                for (int cube_size = 2; cube_size <= max_cube; cube_size++) {
-                    if ((z + cube_size > z_end) ||
-                        (y + cube_size > y_end) ||
-                        (x + cube_size > x_end))
-                    {
-                        break;
-                    }
-
-                    if (!is_uniform || !window_is_all(model.at(z, y, x), z, z+cube_size, y, y+cube_size, x, x+cube_size)) {
-                        non_uniform.insert(get_block_key(z, y, x, cube_size));
-                        is_uniform = false;
-                    }
-                }
-            }
-        }
-    }
-}
-
-Block BlockGrowth::fit_block(unordered_set<array<int, 6>, hashFunction>& non_uniform, char mode, int width, int height, int depth) {
     for (int z = parent_block.z; z < parent_block.z_end; ++z) {
         int z_off = z - parent_block.z;
-        int z_end = z_off + depth;
-        if (z_end > parent_z_end) break;
-
         for (int y = parent_block.y; y < parent_block.y_end; ++y) {
             int y_off = y - parent_block.y;
-            int y_end = y_off + height;
-            if (y_end > parent_y_end) break;
-
             for (int x = parent_block.x; x < parent_block.x_end; ++x) {
                 int x_off = x - parent_block.x;
-                int x_end = x_off + width;
-                if (x_end > parent_x_end) break;
 
-                if (non_uniform.find(get_block_key(z_off, y_off, x_off, depth, height, width)) == non_uniform.end()) {
+                for (int cube_size = max_cube; cube_size >= 1; cube_size--) {
+                    if ((z + cube_size > parent_block.z_end) ||
+                        (y + cube_size > parent_block.y_end) ||
+                        (x + cube_size > parent_block.x_end))
+                            continue;
+
                     char tag = model.at(z_off, y_off, x_off);
-                    if (window_is_all_uncompressed(z_off, z_end, y_off, y_end, x_off, x_end)) {
-                        Block b(x, y, z, width, height, depth, tag, x_off, y_off, z_off);
-                        grow_block(b, b);
-                        mark_compressed(z_off, z_off+b.depth, y_off, y_off+b.height, x_off, x_off+b.width, 1);
-                        return b;
+                    if (window_is_all(tag, z_off, z_off+cube_size, y_off, y_off+cube_size, x_off, x_off+cube_size)) {
+                        uniform.push(Block(x, y, z, cube_size, cube_size, cube_size, tag, x_off, y_off, z_off));
+                        break;
                     }
                 }
             }
         }
     }
-
-    if (width <= 1 || height <= 1 || depth <= 1) {
-        throw std::runtime_error("No fitting block found at minimal size.");
-    }
-    return fit_block(non_uniform, mode, width - 1, height - 1, depth - 1);
 }
 
 bool BlockGrowth::window_is_all(char val, int z0, int z1, int y0, int y1, int x0, int x1) const {

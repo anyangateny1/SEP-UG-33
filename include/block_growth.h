@@ -5,7 +5,7 @@
 #include <array>
 #include <string>
 #include <unordered_map>
-#include <unordered_set>
+#include <queue>
 #include <functional>
 #include "block.h"
 
@@ -51,23 +51,8 @@ private:
     bool all_compressed() const;
     char get_mode_of_uncompressed(const Block& blk) const;
     
-    // Hashing of non-uniform cubes
-    struct hashFunction {
-        size_t operator()(const std::array<int, 6>& key) const {
-            std::hash<int> hasher;
-            size_t answer = 0;
-            
-            for (int i = 0; i < key.size(); i++) {
-                answer ^= hasher(i) + 0x9e3779b9 + (answer << 6) + (answer >> 2);
-            }
-            return answer;
-        }
-    };
-    std::array<int, 6> get_block_key(int z, int y, int x, int cube_size);
-    std::array<int, 6> get_block_key(int z, int y, int x, int depth, int height, int width);
-    void hash_uniformity(std::unordered_set<std::array<int, 6>, hashFunction>& non_uniform);
+    void search_uniform_blocks(std::priority_queue<Block>& uniform);
 
-    Block fit_block(std::unordered_set<std::array<int, 6>, hashFunction>& non_uniform, char mode, int width, int height, int depth);
     void grow_block(Block& current, Block& best_block);
 
     bool window_is_all(char val,

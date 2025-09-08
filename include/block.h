@@ -43,6 +43,16 @@ public:
     //   x,y,z,width,height,depth,label
     // (label is looked up by BlockGrowth and passed in here)
     void print_block(const std::string& label) const;
+
+    bool operator<(const Block& other) const {
+        if (volume != other.volume)
+            return volume < other.volume; // largest volume first
+        if (z_offset != other.z_offset)
+            return z_offset > other.z_offset; // smaller z first
+        if (y_offset != other.y_offset)
+            return y_offset > other.y_offset; // smaller y first
+        return x_offset > other.x_offset; // smaller x first
+    }
 };
 
 #endif // BLOCK_H
