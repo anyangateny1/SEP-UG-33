@@ -11,11 +11,17 @@ template<typename T>
 class Flat3D {
 public:
     int depth, height, width;
-    std::vector<T> data;
+    T* data;
 
-    Flat3D() : depth(0), height(0), width(0) {}
-    Flat3D(int d, int h, int w, T init = T())
-        : depth(d), height(h), width(w), data(d * h * w, init) {}
+    Flat3D() : depth(0), height(0), width(0), data(nullptr) {}
+
+    // Non-owning view over external buffer
+    Flat3D(int d, int h, int w, T* ptr)
+        : depth(d), height(h), width(w), data(ptr) {}
+
+    inline void reset(int d, int h, int w, T* ptr) {
+        depth = d; height = h; width = w; data = ptr;
+    }
 
     inline T& at(int z, int y, int x) {
         return data[(z * height + y) * width + x];
@@ -44,6 +50,7 @@ private:
 
     // Tracks which cells in 'model' have been compressed (0 = false, 1 = true)
     Flat3D<char> compressed;
+    std::vector<char> compressed_storage; // pre-allocated buffer backing 'compressed'
 
     bool all_compressed() const;
     char get_mode_of_uncompressed(const Block& blk) const;

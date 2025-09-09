@@ -12,14 +12,7 @@ using std::vector;
 void BlockModel::read_specification() {
     string line;
     getline_strict(line);
-    vector<int> vals = split_csv_ints(line);
-    if (vals.size() != 6) throw std::runtime_error("Invalid specification line (need 6 ints).");
-    x_count  = vals[0];
-    y_count  = vals[1];
-    z_count  = vals[2];
-    parent_x = vals[3];
-    parent_y = vals[4];
-    parent_z = vals[5];
+    parse_spec_line_six_ints(line, x_count, y_count, z_count, parent_x, parent_y, parent_z);
 }
 
 void BlockModel::read_tag_table() {
@@ -41,7 +34,9 @@ void BlockModel::read_tag_table() {
 }
 
 void BlockModel::read_model() {
-    model = Flat3D<char>(parent_z, y_count, x_count, '\0');
+    // allocate ring buffer storage once
+    model_storage.assign(static_cast<size_t>(parent_z) * y_count * x_count, '\0');
+    model.reset(parent_z, y_count, x_count, model_storage.data());
 
     int top_slice = 0;
     int n_slices = parent_z;
@@ -52,9 +47,7 @@ void BlockModel::read_model() {
             getline_strict(line);
             if ((int)line.size() < x_count)
                 throw std::runtime_error("Model row shorter than x_count.");
-            for (int x = 0; x < x_count; ++x) {
-                model.at(z % parent_z, y, x) = line[x];
-            }
+            for (int x = 0; x < x_count; ++x) model.at(z % parent_z, y, x) = line[x];
         }
 
         if ((z + 1) % parent_z == 0) {
@@ -85,29 +78,47 @@ void BlockModel::getline_strict(string& out) {
     if (!out.empty() && out.back() == '\r') out.pop_back();
 }
 
-vector<int> BlockModel::split_csv_ints(const string& line) {
-    vector<int> vals;
-    string cur;
-    for (char c : line) {
-        if (c == ',') {
-            if (!cur.empty()) { vals.push_back(std::stoi(cur)); cur.clear(); }
-            else { vals.push_back(0); }
-        } else if (!std::isspace(static_cast<unsigned char>(c))) {
-            cur.push_back(c);
+void BlockModel::parse_spec_line_six_ints(const string& line,
+                                          int& a0, int& a1, int& a2,
+                                          int& a3, int& a4, int& a5) {
+    long vals[6] = {0,0,0,0,0,0};
+    int vi = 0;
+    long sign = 1;
+    long cur = 0;
+    bool in_num = false;
+    for (char ch : line) {
+        if (ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n') continue;
+        if (ch == ',') {
+            if (vi >= 6) throw std::runtime_error("Too many fields in spec line");
+            vals[vi++] = sign * cur;
+            sign = 1; cur = 0; in_num = false;
+            continue;
         }
+        if (ch == '-') { sign = -1; in_num = true; continue; }
+        if (ch < '0' || ch > '9') throw std::runtime_error("Invalid char in spec line");
+        cur = cur * 10 + (ch - '0');
+        in_num = true;
     }
-    if (!cur.empty()) vals.push_back(std::stoi(cur));
-    return vals;
+    if (in_num) {
+        if (vi >= 6) throw std::runtime_error("Too many fields in spec line");
+        vals[vi++] = sign * cur;
+    }
+    if (vi != 6) throw std::runtime_error("Invalid specification line (need 6 ints).");
+    a0 = static_cast<int>(vals[0]);
+    a1 = static_cast<int>(vals[1]);
+    a2 = static_cast<int>(vals[2]);
+    a3 = static_cast<int>(vals[3]);
+    a4 = static_cast<int>(vals[4]);
+    a5 = static_cast<int>(vals[5]);
 }
 
-Flat3D<char> BlockModel::slice_model(const Flat3D<char>& src,
-                                     int depth, int y0, int y1, int x0, int x1) {
-    Flat3D<char> out(depth, y1 - y0, x1 - x0, '\0');
+void BlockModel::slice_model(const Flat3D<char>& src,
+                             Flat3D<char>& dst,
+                             int depth, int y0, int y1, int x0, int x1) {
     for (int z = 0; z < depth; ++z)
         for (int y = y0; y < y1; ++y)
             for (int x = x0; x < x1; ++x)
-                out.at(z, y - y0, x - x0) = src.at(z, y, x);
-    return out;
+                dst.at(z, y - y0, x - x0) = src.at(z, y, x);
 }
 
 void BlockModel::compress_slices(int top_slice, int n_slices) {
@@ -120,9 +131,13 @@ void BlockModel::compress_slices(int top_slice, int n_slices) {
             char tag = model.at(z % parent_z, y, x);
 
             Block parentBlock(x, y, z, width, height, depth, tag);
-            Flat3D<char> model_slices = slice_model(model, depth, y, parentBlock.y_end, x, parentBlock.x_end);
+            // prepare reusable slice buffer
+            const size_t slice_size = static_cast<size_t>(depth) * height * width;
+            if (slice_storage.size() < slice_size) slice_storage.resize(slice_size);
+            slice_view.reset(depth, height, width, slice_storage.data());
+            slice_model(model, slice_view, depth, y, parentBlock.y_end, x, parentBlock.x_end);
 
-            BlockGrowth growth(model_slices, tag_table);
+            BlockGrowth growth(slice_view, tag_table);
             growth.run(parentBlock);
         }
     }

@@ -3,6 +3,7 @@
 
 #include <string>
 #include <unordered_map>
+#include <vector>
 #include "block.h"
 #include "block_growth.h"
 
@@ -20,6 +21,11 @@ private:
 
     // Ring buffer for slices: [parent_z][y_count][x_count]
     Flat3D<char> model;
+    std::vector<char> model_storage; // backing storage for 'model'
+
+    // Scratch buffer for per-parent sub-volume slices (max size parent_z*parent_y*parent_x)
+    Flat3D<char> slice_view;
+    std::vector<char> slice_storage; // backing storage for 'slice_view'
 
     // Single-char tag -> label
     std::unordered_map<char, std::string> tag_table;
@@ -27,10 +33,14 @@ private:
     // Helper functions
     static bool is_empty_line(const std::string& s);
     static void getline_strict(std::string& out);
-    static std::vector<int> split_csv_ints(const std::string& line);
+    // CSV parse without dynamic allocations (expects exactly 6 ints)
+    static void parse_spec_line_six_ints(const std::string& line,
+                                         int& a0, int& a1, int& a2,
+                                         int& a3, int& a4, int& a5);
 
-    static Flat3D<char> slice_model(const Flat3D<char>& src,
-                                    int depth, int y0, int y1, int x0, int x1);
+    static void slice_model(const Flat3D<char>& src,
+                            Flat3D<char>& dst,
+                            int depth, int y0, int y1, int x0, int x1);
 
     void compress_slices(int top_slice, int n_slices);
 };

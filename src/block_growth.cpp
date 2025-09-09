@@ -15,11 +15,11 @@ void BlockGrowth::run(Block parent_block_) {
     parent_y_end = parent_block.y_offset + parent_block.height;
     parent_z_end = parent_block.z_offset + parent_block.depth;
 
-    // Initialise compressed mask to 0 (false)
-    compressed = Flat3D<char>(parent_block.depth,
-                              parent_block.height,
-                              parent_block.width,
-                              0);
+    // Initialise compressed mask to 0 (false) using preallocated storage
+    const size_t comp_size = static_cast<size_t>(parent_block.depth) * parent_block.height * parent_block.width;
+    if (compressed_storage.size() < comp_size) compressed_storage.resize(comp_size);
+    std::fill(compressed_storage.begin(), compressed_storage.begin() + comp_size, 0);
+    compressed.reset(parent_block.depth, parent_block.height, parent_block.width, compressed_storage.data());
 
     while (!all_compressed()) {
         char mode = get_mode_of_uncompressed(parent_block);
@@ -33,8 +33,8 @@ void BlockGrowth::run(Block parent_block_) {
 }
 
 bool BlockGrowth::all_compressed() const {
-    for (char v : compressed.data)
-        if (v == 0) return false;
+    const size_t total = static_cast<size_t>(compressed.depth) * compressed.height * compressed.width;
+    for (size_t i = 0; i < total; ++i) if (compressed.data[i] == 0) return false;
     return true;
 }
 
