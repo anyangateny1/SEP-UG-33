@@ -10,6 +10,8 @@ on:
 
 jobs:
   validate-pr:
+    # ✅ Prevent job from ever running on main
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Check PR assignment
@@ -17,30 +19,16 @@ jobs:
         with:
           script: |
             let prsToCheck = [];
-            
+
             if (context.eventName === 'pull_request') {
               // For PR events, check only the current PR
               prsToCheck = [context.payload.pull_request.number];
-            } else if (context.eventName === 'schedule') {
-              // For scheduled runs, check all open PRs but only once per minute
-              const { data: openPRs } = await github.rest.pulls.list({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                state: 'open'
-              });
-              prsToCheck = openPRs.map(pr => pr.number);
-              
-              if (prsToCheck.length === 0) {
-                console.log("No open PRs to check.");
-                return;
-              }
             }
 
             let hasErrors = false;
-            
+
             for (const prNumber of prsToCheck) {
               try {
-                // Fetch latest PR info
                 const { data: pr } = await github.rest.pulls.get({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
@@ -51,17 +39,14 @@ jobs:
                 const reviewers = pr.requested_reviewers || [];
                 const errors = [];
 
-                // Rule 1: Exactly one assignee
                 if (assignees.length !== 1) {
                   errors.push(`PR #${prNumber} must have exactly ONE assignee (found ${assignees.length}).`);
                 }
 
-                // Rule 2: Exactly one reviewer
                 if (reviewers.length !== 1) {
                   errors.push(`PR #${prNumber} must have exactly ONE reviewer (found ${reviewers.length}).`);
                 }
 
-                // Rule 3: Assignee ≠ Reviewer
                 if (assignees.length === 1 && reviewers.length === 1) {
                   if (assignees[0].login === reviewers[0].login) {
                     errors.push(`PR #${prNumber}: Assignee and reviewer cannot be the same person.`);
@@ -78,7 +63,7 @@ jobs:
                 console.error(`Error checking PR #${prNumber}: ${error.message}`);
               }
             }
-            
+
             if (hasErrors) {
               core.setFailed("One or more PRs have assignee/reviewer issues. Check the logs above.");
             }
